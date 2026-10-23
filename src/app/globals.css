@@ -1,0 +1,204 @@
+@import "tailwindcss";
+
+/* Class-based dark mode so the user's choice can override the OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. Every colour used by components comes from here, so rebranding means editing
+ * this block (and the dark block below) only.
+ */
+:root {
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --surface-2: #efede7;
+  --border: #e2ded4;
+  --text: #1d1b18;
+  --muted: #69645a;
+  --accent: #d9480f;
+  --accent-contrast: #ffffff;
+  --accent-soft: #fde8dd;
+  --ink: #1d1b18;
+  --ink-contrast: #ffffff;
+
+  /* Musical roles */
+  --role-root: #e8590c;
+  --role-third: #0b9488;
+  --role-fifth: #7048e8;
+  --role-seventh: #c2255c;
+  --role-tone: #1c7ed6;
+  --role-neutral: #6b7280;
+
+  /* Evaluation states */
+  --correct: #2b8a3e;
+  --correct-soft: #e6f4ea;
+  --incorrect: #d6336c;
+  --incorrect-soft: #fde7ef;
+
+  /* Fretboard */
+  --fb-wood: #4a3426;
+  --fb-wood-edge: #3a281d;
+  --fb-fret: #cfc8bb;
+  --fb-nut: #efe6d2;
+  --fb-string: #e7e0d2;
+  --fb-inlay: #e9dfcb;
+  --fb-region: #ffd8a8;
+  --fb-label: #69645a;
+  --fb-focus: #ffd43b;
+
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #12110f;
+  --surface: #1b1a17;
+  --surface-2: #24221e;
+  --border: #33302a;
+  --text: #f3f0ea;
+  --muted: #a8a296;
+  --accent: #ff7a3d;
+  --accent-contrast: #1b1a17;
+  --accent-soft: #3a2116;
+  --ink: #f3f0ea;
+  --ink-contrast: #1b1a17;
+
+  --role-root: #ff8a3d;
+  --role-third: #2ec4b6;
+  --role-fifth: #9775fa;
+  --role-seventh: #f06595;
+  --role-tone: #4dabf7;
+  --role-neutral: #9ca3af;
+
+  --correct: #51cf66;
+  --correct-soft: #16301c;
+  --incorrect: #ff6b9a;
+  --incorrect-soft: #3a1622;
+
+  --fb-wood: #3a291e;
+  --fb-wood-edge: #2b1e16;
+  --fb-fret: #b9b2a5;
+  --fb-nut: #e3d8c0;
+  --fb-string: #d9d1c1;
+  --fb-inlay: #d9cdb3;
+  --fb-region: #ffc078;
+  --fb-label: #a8a296;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-soft: var(--accent-soft);
+  --color-ink: var(--ink);
+  --color-ink-contrast: var(--ink-contrast);
+  --color-root: var(--role-root);
+  --color-third: var(--role-third);
+  --color-fifth: var(--role-fifth);
+  --color-tone: var(--role-tone);
+  --color-correct: var(--correct);
+  --color-correct-soft: var(--correct-soft);
+  --color-incorrect: var(--incorrect);
+  --color-incorrect-soft: var(--incorrect-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Fretboard animation. Markers scale in when they appear; incorrect answers shake.
+ * ------------------------------------------------------------------------------------------- */
+.fb-marker {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fb-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.fb-marker * {
+  transition:
+    fill 180ms ease,
+    stroke 180ms ease,
+    opacity 180ms ease;
+}
+.fb-marker[data-state="incorrect"] {
+  animation: fb-shake 360ms ease both;
+}
+.fb-marker[data-state="ghost"] {
+  animation: none;
+}
+@keyframes fb-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes fb-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+.fb-cell {
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.fb-cell:hover + .fb-hover {
+  opacity: 1;
+}
+.fb-hover {
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.fade-in {
+  animation: fade-in 280ms ease both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
