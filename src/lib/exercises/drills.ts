@@ -318,6 +318,7 @@ const inversionRecognition: Gen<"inversion-recognition"> = (g, id, rng) =>
       prompt: `This is **${chordName(chord)}**. Which inversion is it?`,
       board: { ...board, layout: NECK, range: { start: Math.max(0, board.range!.start - 1), end: board.range!.start + 5 } },
       choices: INVERSIONS.map((inv) => ({ id: inv, label: capitalize(INVERSION_NAMES[inv]) })),
+      keepChoiceOrder: true,
       answer: inversion,
     };
     return item;
@@ -535,6 +536,14 @@ export const DRILL_GENERATORS: GeneratorMap = {
   "caged-identification": cagedIdentification,
   "caged-construction": cagedConstruction,
 };
+
+/**
+ * The order to show a multiple-choice question's options in: shuffled (so the answer's position
+ * gives nothing away), unless the exercise asks to keep its authored order.
+ */
+export function displayChoices(exercise: MultipleChoiceExercise, rng: Rng = Math.random): Choice[] {
+  return exercise.keepChoiceOrder ? [...exercise.choices] : shuffle(rng, exercise.choices);
+}
 
 /** Generate one round. Avoids repeating the previous round's prompt+answer where possible. */
 export function generateDrillItem(drill: DrillExercise, round: number, rng: Rng, previous?: DrillItem): DrillItem {

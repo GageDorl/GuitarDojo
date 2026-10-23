@@ -108,6 +108,11 @@ export interface MultipleChoiceExercise extends ExerciseBase {
   readonly board?: FretboardSpec;
   readonly choices: readonly Choice[];
   readonly answer: string;
+  /**
+   * Choices are shuffled when shown, so authors can list the answer first without giving it away.
+   * Set true when the order itself is meaningful (root position → first → second inversion).
+   */
+  readonly keepChoiceOrder?: boolean;
 }
 
 /** Construction / location: interact with the fretboard. */

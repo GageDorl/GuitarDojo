@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { type MultipleChoiceExercise, type ValidationResult, validateChoice } from "@/lib/exercises";
+import { type MultipleChoiceExercise, type ValidationResult, displayChoices, validateChoice } from "@/lib/exercises";
 import { resolveFretboard } from "@/lib/fretboard";
 import { ResponsiveFretboard } from "@/components/fretboard/ResponsiveFretboard";
 import { CheckIcon, XIcon } from "@/components/ui/Icons";
@@ -9,6 +9,8 @@ import { ExerciseCard, type ExerciseViewProps, FeedbackPanel } from "./ExerciseC
 
 export function MultipleChoiceView({ exercise, record, onAttempt }: ExerciseViewProps<MultipleChoiceExercise>) {
   const model = useMemo(() => (exercise.board ? resolveFretboard(exercise.board) : null), [exercise.board]);
+  // Shuffled once per mount (lessons render client-side only, so no hydration mismatch).
+  const [choices] = useState(() => displayChoices(exercise));
   const [wrong, setWrong] = useState<string[]>([]);
   const [result, setResult] = useState<ValidationResult | null>(null);
   const solved = Boolean(record?.solved) || result?.correct === true;
@@ -31,7 +33,7 @@ export function MultipleChoiceView({ exercise, record, onAttempt }: ExerciseView
         </div>
       )}
       <div className={`grid gap-2 ${short ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2"}`} role="group" aria-label="Answer choices">
-        {exercise.choices.map((choice) => {
+        {choices.map((choice) => {
           const isWrong = wrong.includes(choice.id);
           const isAnswer = solved && choice.id === exercise.answer;
           return (

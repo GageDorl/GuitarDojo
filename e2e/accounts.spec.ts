@@ -1,6 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, expect as baseExpect, test } from "@playwright/test";
+
+// Auth flows hash passwords (deliberately slow) on one shared in-process test database. When the
+// whole suite runs in parallel that can take several seconds, so allow more time than lesson tests.
+test.describe.configure({ timeout: 90_000 });
+const expect = baseExpect.configure({ timeout: 20_000 });
 
 const MAIL_DIR = ".data/e2e-mail";
 const PASSWORD = "correct horse battery staple";

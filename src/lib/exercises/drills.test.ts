@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveFretboard } from "@/lib/fretboard";
 import { parseVoicing, voicingPositions } from "@/lib/theory";
-import { type DrillExercise, type DrillGenerator, type DrillItem, generateDrillItem, seededRng, validate } from ".";
+import { type DrillExercise, type DrillGenerator, type DrillItem, displayChoices, generateDrillItem, seededRng, validate } from ".";
 
 const OPEN_MIDI: Record<number, number> = { 6: 40, 5: 45, 4: 50, 3: 55, 2: 59, 1: 64 };
 const NAMES = ["C", "C♯/D♭", "D", "D♯/E♭", "E", "F", "F♯/G♭", "G", "G♯/A♭", "A", "A♯/B♭", "B"];
@@ -49,6 +49,31 @@ function solves(item: DrillItem) {
   const result = validate(item.rule, { tuning: model.tuning, selection: item.solution, range: model.range });
   expect(result.correct, `${item.prompt}: ${result.issues.map((i) => i.message).join("; ")}`).toBe(true);
 }
+
+describe("choice display order", () => {
+  const exercise = {
+    id: "q",
+    kind: "multiple-choice" as const,
+    prompt: "?",
+    answer: "a",
+    choices: ["a", "b", "c", "d"].map((id) => ({ id, label: id.toUpperCase() })),
+  };
+
+  it("shuffles so the authored-first answer lands in every position", () => {
+    const rng = seededRng(3);
+    const positions = new Set(Array.from({ length: 60 }, () => displayChoices(exercise, rng).findIndex((c) => c.id === "a")));
+    expect([...positions].sort()).toEqual([0, 1, 2, 3]);
+  });
+
+  it("keeps every choice exactly once", () => {
+    const shown = displayChoices(exercise, seededRng(9));
+    expect(shown.map((c) => c.id).sort()).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("respects keepChoiceOrder", () => {
+    expect(displayChoices({ ...exercise, keepChoiceOrder: true }, seededRng(1)).map((c) => c.id)).toEqual(["a", "b", "c", "d"]);
+  });
+});
 
 describe("drill generators", () => {
   it("is deterministic for a given seed", () => {
