@@ -9,8 +9,8 @@ Checkboxes reflect what is built and tested in this repository. Items marked _(p
 | Phase | Status |
 | --- | --- |
 | 1. Core Education Platform | Done; refinement ongoing |
-| 2. Music Theory Curriculum | Foundation batch done: 5 new courses plus the original triads course. Expert review and user testing pending. Intermediate and advanced theory not started. |
-| 3. Learning Paths & Discovery | _(partial)_ A single theory curriculum with stages, soft course prerequisites and a roadmap view. No multi-discipline paths or onboarding yet. |
+| 2. Music Theory Curriculum | 9 courses live: the foundation batch, the triads course, and Keys & Progressions, CAGED, and Seventh & Extended Chords. Expert review and user testing pending. Arpeggios, modes and advanced theory not started. |
+| 3. Learning Paths & Discovery | _(partial)_ Three learning paths shown on `/learn` and the home page; Technique and Luthiery are marked "Coming soon". No enrolment or onboarding yet. |
 | 4. Practice System | Not started |
 | 5. Luthiery Path | Not started |
 | 6. Standalone Tools | Not started. Explorers exist only inside lessons. |
@@ -130,9 +130,17 @@ Build a comprehensive sequence of interactive music theory courses using the exi
 ### Intermediate music theory
 
 - [x] Major and Minor Triads. This is the original course, now placed on the pathway after Intervals.
-- [ ] Keys and Chord Progressions
-- [ ] Diatonic Harmony and Roman Numerals
-- [ ] Seventh and Extended Chords
+- [x] Keys and Chord Progressions (`keys-and-progressions`, 7 lessons): key signatures and the circle of fifths, diatonic triads, minor keys and progressions as barre shapes.
+- [x] Diatonic Harmony and Roman Numerals. Covered inside Keys and Chord Progressions; seventh-chord numerals are in the next course.
+- [x] The CAGED System (`caged-system`, 7 lessons): the five shapes, the sequence in any key, minor shapes, and chords inside scale positions.
+- [x] Seventh and Extended Chords (`seventh-chords`, 7 lessons): maj7, 7, m7, m7♭5 and dim7; sevenths in a key; moveable shapes; an introduction to 9ths, 11ths and 13ths.
+
+  **Built alongside these courses:**
+  - Seventh-chord qualities, diatonic harmony (`diatonicChords`, `romanNumeral`, `keySignature`), CAGED shape data (`cagedVoicing`), and seventh voicings in the voicing library. All have hand-written reference tests.
+  - Four new drill generators: name chords and numerals in a key, build them, and recognise and build CAGED shapes.
+  - Musical feedback for a wrong seventh.
+  - Chord stacks for four-note chords.
+  - A content check that every chord diagram contains only its chord's notes.
 - [ ] Arpeggios and Chord-Tone Navigation
 - [ ] Modes and Tonal Color
 - [ ] Ear Training Fundamentals. _(Blocked on audio, Phase 7.)_
@@ -169,13 +177,13 @@ Each course should use a progression of:
 ## Phase 3 — Learning Paths and Course Discovery
 
 **Priority: High**
-**Status: _(partial)_ One theory curriculum, organized by stage, with a roadmap view on `/learn`.**
+**Status: _(partial)_ Three learning paths appear on `/learn` and the home page. Music Theory & Fretboard Mastery is live; Guitar Playing & Technique and Guitar Anatomy & Luthiery show their planned courses as "Coming soon". There's no per-path enrolment or onboarding yet.**
 
 Expand the existing course catalog into a platform supporting multiple educational disciplines.
 
 ### Learning path architecture
 
-- [ ] Organize content into Learning Paths → Courses → Modules → Lessons → Exercises. _(partial: Courses → Modules → Lessons → Exercises exists. Courses are grouped into curriculum stages in `src/content/curriculum.ts`, but there is no "Learning Path" level for separate disciplines yet.)_
+- [x] Organize content into Learning Paths → Courses → Modules → Lessons → Exercises. `LEARNING_PATHS` in `src/content/curriculum.ts` defines each path's stages and courses, with planned courses listed as "coming soon".
 - [x] Preserve existing progress and course identifiers during migration. The triads course keeps its id, and a test guards this.
 - [ ] Allow users to enroll in multiple paths independently.
 - [ ] Support prerequisite relationships across learning paths. _(Prerequisites between courses work; paths don't exist yet.)_
@@ -595,7 +603,7 @@ These should continue throughout development. A checked item is a practice that 
 
 **Next priorities**
 
-6. Expand the remaining intermediate theory curriculum.
+6. Expand the remaining intermediate theory curriculum. _(Keys & Progressions, CAGED, and Seventh & Extended Chords are done. Next: Arpeggios and Modes.)_
 7. Add daily practice scheduling and performance tracking.
 8. Develop standalone chord, scale, and interval explorers.
 9. Implement audio demonstrations.

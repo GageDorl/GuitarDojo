@@ -1,12 +1,11 @@
 import type { Lesson } from "@/lib/courses";
-import { type ChordQualityId, COMMON_VOICINGS } from "@/lib/theory";
+import { COMMON_VOICINGS } from "@/lib/theory";
 import { BUILD, callout, choice, drill, exercise, shape, step, text, voicingBoard } from "@/content/helpers";
 
 /** Open-chord voicings come from the engine's verified voicing library, not hand-typed shapes. */
 const open = (symbol: string) => {
-  const minor = symbol.endsWith("m");
-  const chord = { root: minor ? symbol.slice(0, -1) : symbol, quality: (minor ? "minor" : "major") as ChordQualityId };
-  return { title: COMMON_VOICINGS[symbol]!.name, board: voicingBoard(chord, COMMON_VOICINGS[symbol]!.shapes[0]!) };
+  const entry = COMMON_VOICINGS[symbol]!;
+  return { title: entry.name, board: voicingBoard(entry.chord, entry.shapes[0]!) };
 };
 
 export const openChords: Lesson = {

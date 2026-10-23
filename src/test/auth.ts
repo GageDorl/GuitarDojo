@@ -52,7 +52,7 @@ interface LoggedMail {
 /** Most recent logged email to `to` whose subject contains `subject`. */
 export async function latestMail(to: string, subject: string): Promise<LoggedMail> {
   const dir = process.env.MAIL_LOG_DIR ?? ".data/test-mail";
-  const files = (await readdir(dir)).sort().reverse();
+  const files = (await readdir(dir)).filter((f) => f.endsWith(".json")).sort().reverse();
   for (const file of files) {
     const mail = JSON.parse(await readFile(path.join(dir, file), "utf8")) as LoggedMail;
     if (mail.to === to && mail.subject.includes(subject)) return mail;

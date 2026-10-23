@@ -4,6 +4,7 @@
  */
 import type { FretboardSpec, SelectionMode } from "@/lib/fretboard";
 import type {
+  CagedShape,
   ChordQualityId,
   ChordSpec,
   FretPosition,
@@ -214,6 +215,38 @@ export type DrillGenerator =
       readonly scale: ScaleTypeId;
       readonly roots: readonly string[];
       readonly degrees?: readonly number[];
+    }
+  /** "What is the IV chord in D major?" (ask: chord) or "In D major, G major is which chord?" (ask: numeral). */
+  | {
+      readonly type: "diatonic-chord";
+      readonly keys: readonly string[];
+      readonly scale: "major" | "natural-minor";
+      readonly ask: "chord" | "numeral" | "mixed";
+      readonly degrees?: readonly number[];
+      readonly sevenths?: boolean;
+    }
+  /** "Build the V chord in A major." */
+  | {
+      readonly type: "diatonic-construction";
+      readonly keys: readonly string[];
+      readonly scale: "major" | "natural-minor";
+      readonly degrees?: readonly number[];
+      readonly range: FretRange;
+      readonly sevenths?: boolean;
+    }
+  /** "This is G major. Which CAGED shape is it?" */
+  | {
+      readonly type: "caged-identification";
+      readonly roots: readonly string[];
+      readonly shapes?: readonly CagedShape[];
+      readonly quality?: "major" | "minor";
+    }
+  /** "Play G major with the E shape." */
+  | {
+      readonly type: "caged-construction";
+      readonly roots: readonly string[];
+      readonly shapes?: readonly CagedShape[];
+      readonly quality?: "major" | "minor";
     };
 
 export interface DrillExercise extends ExerciseBase {
@@ -240,6 +273,7 @@ export type FeedbackCode =
   | "wrong-note"
   | "wrong-third"
   | "wrong-fifth"
+  | "wrong-seventh"
   | "missing-tone"
   | "missing-note"
   | "wrong-octave"

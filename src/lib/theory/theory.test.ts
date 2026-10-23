@@ -252,9 +252,10 @@ describe("voicings", () => {
   });
 
   it("validates the common voicing library against the chord engine", () => {
-    for (const [symbol, { shapes }] of Object.entries(COMMON_VOICINGS)) {
-      const minor = symbol.endsWith("m");
-      const chord = buildChord(minor ? symbol.slice(0, -1) : symbol, minor ? "minor" : "major");
+    for (const [symbol, { chord: spec, shapes }] of Object.entries(COMMON_VOICINGS)) {
+      const chord = buildChord(spec.root, spec.quality);
+      // The library key is the chord symbol (ASCII flats), e.g. "Bbm7".
+      expect(chordSymbol(chord).replace("♭5", "b5").replace("♭", "b"), symbol).toBe(symbol);
       for (const shape of shapes) {
         expect(voicingMatchesChord(STANDARD_TUNING, chord, parseVoicing(shape)), `${symbol} ${shape}`).toBe(true);
       }

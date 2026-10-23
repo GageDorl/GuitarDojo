@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { CalloutBlock, CompareBlock, FretboardBlock, TriadStackBlock } from "@/lib/courses";
 import { resolveFretboard } from "@/lib/fretboard";
-import { buildChord, chordName, intervalName, noteName, pitchClass, semitonesUp } from "@/lib/theory";
+import { buildChord, chordName, intervalBetween, intervalName, noteName, pitchClass, semitonesUp } from "@/lib/theory";
 import { ResponsiveFretboard } from "@/components/fretboard/ResponsiveFretboard";
 import { GuitarIcon, InfoIcon, LightbulbIcon } from "@/components/ui/Icons";
 import { RichText } from "../RichText";
@@ -62,22 +62,28 @@ export function CompareView({ block }: { block: CompareBlock }) {
   );
 }
 
-const ROLE_BG = { root: "bg-root", third: "bg-third", fifth: "bg-fifth", seventh: "bg-root" } as const;
+const ROLE_BG = { root: "bg-root", third: "bg-third", fifth: "bg-fifth", seventh: "bg-seventh" } as const;
 
+/** A chord as a stack of thirds (triads and seventh chords), top note first. */
 export function TriadStackView({ block }: { block: TriadStackBlock }) {
   const chord = buildChord(block.chord.root, block.chord.quality);
-  const [root, third, fifth] = chord.tones;
-  if (!root || !third || !fifth) return null;
-  const lower = semitonesUp(pitchClass(root.note), pitchClass(third.note));
-  const upper = semitonesUp(pitchClass(third.note), pitchClass(fifth.note));
-  const stack = [
-    { tone: fifth, gap: `${upper === 4 ? "major" : "minor"} third · ${upper} semitones` },
-    { tone: third, gap: `${lower === 4 ? "major" : "minor"} third · ${lower} semitones` },
-    { tone: root, gap: null },
-  ];
+  const tones = chord.tones;
+  const root = tones[0];
+  const top = tones[tones.length - 1];
+  if (!root || !top || tones.length < 2) return null;
+  // Gap below each tone: the third between it and the tone underneath.
+  const stack = [...tones]
+    .map((tone, i) => {
+      const below = tones[i - 1];
+      if (!below) return { tone, gap: null };
+      const size = semitonesUp(pitchClass(below.note), pitchClass(tone.note));
+      return { tone, gap: `${intervalName(intervalBetween(below.note, tone.note))} · ${size} semitones` };
+    })
+    .reverse();
+  const total = tones.slice(1).reduce((sum, t, i) => sum + semitonesUp(pitchClass(tones[i]!.note), pitchClass(t.note)), 0);
   return (
     <Figure caption={block.caption}>
-      <div className="mx-auto flex max-w-sm items-stretch gap-3" aria-label={`${chordName(chord)} triad: ${chord.tones.map((t) => noteName(t.note)).join(", ")}`} role="img">
+      <div className="mx-auto flex max-w-sm items-stretch gap-3" aria-label={`${chordName(chord)}: ${tones.map((t) => noteName(t.note)).join(", ")}`} role="img">
         <div className="flex flex-1 flex-col">
           {stack.map(({ tone, gap }) => (
             <div key={tone.role}>
@@ -106,7 +112,7 @@ export function TriadStackView({ block }: { block: TriadStackBlock }) {
         <div className="flex w-8 flex-col items-center py-6" aria-hidden>
           <div className="w-px flex-1 bg-fifth/60" />
           <span className="my-1 rotate-180 text-xs font-medium whitespace-nowrap text-muted [writing-mode:vertical-rl]">
-            {intervalName(fifth.interval)} · {lower + upper} semitones
+            {intervalName(top.interval)} · {total} semitones
           </span>
           <div className="w-px flex-1 bg-fifth/60" />
         </div>

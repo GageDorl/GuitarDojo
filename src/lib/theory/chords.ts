@@ -60,6 +60,62 @@ export const CHORD_QUALITIES = {
       { interval: "A5", role: "fifth" },
     ],
   },
+  // Seventh chords: a triad plus another third on top.
+  major7: {
+    id: "major7",
+    name: "major seventh",
+    symbol: "maj7",
+    formula: [
+      { interval: "P1", role: "root" },
+      { interval: "M3", role: "third" },
+      { interval: "P5", role: "fifth" },
+      { interval: "M7", role: "seventh" },
+    ],
+  },
+  dominant7: {
+    id: "dominant7",
+    name: "dominant seventh",
+    symbol: "7",
+    formula: [
+      { interval: "P1", role: "root" },
+      { interval: "M3", role: "third" },
+      { interval: "P5", role: "fifth" },
+      { interval: "m7", role: "seventh" },
+    ],
+  },
+  minor7: {
+    id: "minor7",
+    name: "minor seventh",
+    symbol: "m7",
+    formula: [
+      { interval: "P1", role: "root" },
+      { interval: "m3", role: "third" },
+      { interval: "P5", role: "fifth" },
+      { interval: "m7", role: "seventh" },
+    ],
+  },
+  halfDiminished7: {
+    id: "halfDiminished7",
+    name: "half-diminished seventh",
+    symbol: "m7♭5",
+    formula: [
+      { interval: "P1", role: "root" },
+      { interval: "m3", role: "third" },
+      { interval: "d5", role: "fifth" },
+      { interval: "m7", role: "seventh" },
+    ],
+  },
+  diminished7: {
+    id: "diminished7",
+    name: "diminished seventh",
+    symbol: "dim7",
+    formula: [
+      { interval: "P1", role: "root" },
+      { interval: "m3", role: "third" },
+      { interval: "d5", role: "fifth" },
+      { interval: "d7", role: "seventh" },
+    ],
+  },
 } as const satisfies Record<string, ChordQualityDefinition>;
 
 export type ChordQualityId = keyof typeof CHORD_QUALITIES;

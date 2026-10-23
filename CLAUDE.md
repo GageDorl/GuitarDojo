@@ -4,7 +4,7 @@ Guidance for agents working in this repo. Read this first; [docs/ARCHITECTURE.md
 
 ## What this is
 
-Guitar Dojo: an interactive guitar-education site (Next.js 16 App Router, React 19, TypeScript 5.9 strict, Tailwind 4). The current scope is the **course platform only**. Six courses are live, in pathway order (`src/content/index.ts`):
+Guitar Dojo: an interactive guitar-education site (Next.js 16 App Router, React 19, TypeScript 5.9 strict, Tailwind 4). The current scope is the **course platform only**. Nine courses are live, in pathway order (`src/content/index.ts`):
 
 | Course id | Title | Stage | Recommended first |
 | --- | --- | --- | --- |
@@ -14,8 +14,13 @@ Guitar Dojo: an interactive guitar-education site (Next.js 16 App Router, React 
 | `major-minor-scales` | Major and Minor Scales | intermediate | intervals |
 | `pentatonic-scales` | Pentatonic Scales and Fretboard Navigation | intermediate | major-minor-scales |
 | `chord-voicings` | Chord Voicings and Inversions | intermediate | fretboard-foundations |
+| `keys-and-progressions` | Keys and Chord Progressions | intermediate | fretboard-foundations, major-minor-scales |
+| `caged-system` | The CAGED System | intermediate | chord-voicings |
+| `seventh-chords` | Seventh and Extended Chords | fluency | keys-and-progressions |
 
-Every course is 7–8 lessons ending in a `kind: "assessment"` checkpoint. The full long-term roadmap (planned courses shown as "coming later") is `src/content/curriculum.ts`.
+Every course is 7–8 lessons ending in a `kind: "assessment"` checkpoint.
+
+**Learning paths** (`LEARNING_PATHS` in `src/content/curriculum.ts`): `theory` (live; the courses above), `technique` and `luthiery` (status `coming-soon`; planned courses only, each with a one-line `summary`). `/learn` and the home page render all three; a path becomes `available` exactly when it has a live course (tested). Planned entries have no id, so they can be moved freely.
 
 **Accounts exist but are optional** (free public beta): Better Auth (email + password, required verification, password reset), PostgreSQL via Drizzle, progress synced as events. Everything works signed out. Shop, blog, tools, payments and audio are intentionally **not built**; don't add them unless asked. Production deployment: Docker Compose on a shared Hostinger VPS behind the host's nginx, live at https://dojo.gagedorl.com. See "Current production deployment" in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the actual setup and how changes ship (push to `main`; the owner pulls and runs `scripts/deploy.sh` on the server). **Never deploy, touch DNS, or use production credentials without explicit permission.**
 
@@ -85,11 +90,11 @@ Everything under `src/lib/` and `src/content/` must stay **framework-free** (no 
 ## Recipes
 
 **Add a lesson**
-1. New file in `src/content/courses/<course>/lessons/` exporting a `Lesson`. Use helpers from `src/content/helpers.ts`: `step`, `text`, `callout`, `board`, `choice`, `exercise`, `drill`, `shape`, `buildUp` (demo frames), layout presets `NECK`/`CHORD`/`BUILD`, and **engine-computed answers**: `notePositions`, `scaleAlongString`, `scaleInWindow`, `pentatonicWindow`, `voicingBoard`, `generatedVoicings`, `moved` (barre shapes). Prefer these over hand-typed fret lists.
+1. New file in `src/content/courses/<course>/lessons/` exporting a `Lesson`. Use helpers from `src/content/helpers.ts`: `step`, `text`, `callout`, `board`, `choice`, `exercise`, `drill`, `shape`, `buildUp` (demo frames), layout presets `NECK`/`CHORD`/`BUILD`, and **engine-computed answers**: `notePositions`, `scaleAlongString`, `scaleInWindow`, `pentatonicWindow`, `voicingBoard`, `generatedVoicings`, `moved` (barre shapes), `caged(shape, root, quality)`, `chordMarkers` (chord roles over another board), `rangeOf`. Harmony comes from the engine too (`diatonicChords`, `romanNumeral`, `keySignature`); seventh chords are ordinary `CHORD_QUALITIES` (`major7`, `dominant7`, `minor7`, `halfDiminished7`, `diminished7`). Every chord diagram (`chord.voicing`) is tested to contain only its chord's notes. Prefer these over hand-typed fret lists.
 2. Register it in that course's `index.ts` (lesson `prerequisites` are lesson ids within the same course and must come earlier).
 3. `npm test`: `src/content/content.test.ts` checks every fretboard exercise's `solution` passes its own rule, solutions are inside the board range/active strings (and on markers when `selectableOnlyMarkers`), `initialSelection` isn't already correct, ids are unique per lesson, prerequisites exist and come earlier, every diagram resolves, and **samples 60 generated questions from every drill** and validates each one. **Do not weaken this test to make content pass; fix the content.**
 
-**Add a course**: create `src/content/courses/<dir>/index.ts` exporting a `Course` (with `stage`, `prerequisites` as course ids, `outcomes`), add it to `COURSES` in `src/content/index.ts` *after* its prerequisites, and set its `courseId` on the matching entry in `src/content/curriculum.ts`. Tests enforce: unique ids, prerequisites earlier in `COURSES`, every course in the roadmap, 6–10 lessons, last lesson is an assessment. **Never rename a published course or lesson id** (they're progress keys).
+**Add a course**: create `src/content/courses/<dir>/index.ts` exporting a `Course` (with `stage`, `prerequisites` as course ids, `outcomes`), add it to `COURSES` in `src/content/index.ts` *after* its prerequisites, and set its `courseId` on the matching entry in `LEARNING_PATHS` (`src/content/curriculum.ts`); for the first course of a coming-soon path, also flip that path's `status` to `"available"`. Tests enforce: unique ids, prerequisites earlier in `COURSES`, every course in the roadmap, 6–10 lessons, last lesson is an assessment. **Never rename a published course or lesson id** (they're progress keys).
 
 **Teaching pattern** used across courses: labelled demo/explorer → unlabelled recognition → construction → a `drill` in random keys/positions → checkpoint (`min-score` 0.75, first attempts only). Drills inside checkpoints count as correct only if passed on the first run.
 

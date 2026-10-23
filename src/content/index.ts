@@ -10,12 +10,16 @@
 import "server-only";
 import { type Course, type CourseOutline, allLessons, findLesson, toCourseOutline } from "@/lib/courses";
 import { lessonPolicy } from "./access";
+import { LEARNING_PATHS } from "./curriculum";
 import { understandingIntervals } from "./courses/intervals";
 import { notesAndTheFretboard } from "./courses/notes-fretboard";
 import { pentatonicScales } from "./courses/pentatonic";
 import { majorMinorScales } from "./courses/scales";
 import { majorMinorTriads } from "./courses/triads";
 import { chordVoicings } from "./courses/voicings";
+import { keysAndProgressions } from "./courses/keys";
+import { cagedSystem } from "./courses/caged";
+import { seventhChords } from "./courses/sevenths";
 
 export const COURSES: readonly Course[] = [
   notesAndTheFretboard,
@@ -24,9 +28,13 @@ export const COURSES: readonly Course[] = [
   majorMinorScales,
   pentatonicScales,
   chordVoicings,
+  keysAndProgressions,
+  cagedSystem,
+  seventhChords,
 ];
 
-export { CURRICULUM } from "./curriculum";
+export { CURRICULUM, LEARNING_PATHS, liveCourseIds } from "./curriculum";
+export type { LearningPath, RoadmapEntry, RoadmapStage } from "./curriculum";
 export { COURSE_ACCESS, coursePolicy, lessonPolicy } from "./access";
 
 export function getCourse(courseId: string): Course | undefined {
@@ -40,6 +48,22 @@ export function getLesson(courseId: string, lessonId: string) {
 
 export function allLessonParams(): { courseId: string; lessonId: string }[] {
   return COURSES.flatMap((course) => allLessons(course).map((lesson) => ({ courseId: course.id, lessonId: lesson.id })));
+}
+
+/** Plain, content-free summaries of the learning paths, safe to pass to any component. */
+export function getPathSummaries() {
+  return LEARNING_PATHS.map((path) => {
+    const all = path.stages.flatMap((s) => s.courses);
+    return {
+      id: path.id,
+      title: path.title,
+      tagline: path.tagline,
+      description: path.description,
+      status: path.status,
+      liveCourses: all.filter((c) => c.courseId).length,
+      plannedCourses: all.filter((c) => !c.courseId).length,
+    };
+  });
 }
 
 const outlines = new Map<string, CourseOutline>();

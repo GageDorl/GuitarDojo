@@ -11,6 +11,32 @@ const ctx = (selection: FretPosition[], range = { start: 0, end: 12 }) => ({
 const shape = (s: string) => voicingPositions(parseVoicing(s));
 const codes = (rule: ValidationRule, selection: FretPosition[]) => validate(rule, ctx(selection)).issues.map((i) => i.code);
 
+describe("seventh chord validation", () => {
+  it("accepts open and barre voicings of seventh chords", () => {
+    expect(validate({ type: "chord", chord: { root: "E", quality: "dominant7" } }, ctx(shape("020100"))).correct).toBe(true);
+    expect(validate({ type: "chord", chord: { root: "A", quality: "minor7" } }, ctx(shape("x02010"))).correct).toBe(true);
+    expect(validate({ type: "chord", chord: { root: "C", quality: "major7" } }, ctx(shape("x32000"))).correct).toBe(true);
+  });
+
+  it("explains the wrong kind of seventh", () => {
+    const result = validate({ type: "chord", chord: { root: "C", quality: "major7" } }, ctx(shape("x35353"))); // C7
+    expect(result.message).toBe("Those notes form C dominant seventh, not C major seventh.");
+    expect(result.issues.find((i) => i.code === "wrong-seventh")?.message).toBe(
+      "B♭ is a minor seventh above C. C major seventh needs a major seventh: B.",
+    );
+  });
+
+  it("explains a seventh added to a plain triad", () => {
+    const result = validate({ type: "chord", chord: { root: "E", quality: "major" } }, ctx(shape("020100"))); // E7
+    expect(result.issues.find((i) => i.code === "wrong-seventh")?.message).toBe("D adds a seventh. E major is a triad: just E, G♯ and B.");
+  });
+
+  it("reports a missing seventh", () => {
+    const result = validate({ type: "chord", chord: { root: "G", quality: "dominant7" } }, ctx(shape("320003"))); // plain G
+    expect(result.issues.map((i) => i.message)).toContain("Your chord is missing the seventh (F).");
+  });
+});
+
 describe("chord validation", () => {
   const eMajor: ValidationRule = { type: "chord", chord: { root: "E", quality: "major" } };
   const aMajor: ValidationRule = { type: "chord", chord: { root: "A", quality: "major" } };

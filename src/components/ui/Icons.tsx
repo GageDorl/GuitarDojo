@@ -63,3 +63,22 @@ export const ResetIcon = () => (
     <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" />
   </svg>
 );
+/** Learning-path icons (24px, stroke). */
+export const FretboardIcon = (p: { size?: number }) => (
+  <svg {...base} width={p.size ?? 24} height={p.size ?? 24} strokeWidth={1.8}>
+    <rect x="3" y="6" width="18" height="12" rx="2" />
+    <path d="M8 6v12M13 6v12M18 6v12M3 10h18M3 14h18" />
+    <circle cx="10.5" cy="12" r="1.2" fill="currentColor" />
+  </svg>
+);
+export const MetronomeIcon = (p: { size?: number }) => (
+  <svg {...base} width={p.size ?? 24} height={p.size ?? 24} strokeWidth={1.8}>
+    <path d="M9 3h6l4 17H5L9 3z" />
+    <path d="M12 16l5-9M8 20h8" />
+  </svg>
+);
+export const WrenchIcon = (p: { size?: number }) => (
+  <svg {...base} width={p.size ?? 24} height={p.size ?? 24} strokeWidth={1.8}>
+    <path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L3.6 17.4a1.6 1.6 0 0 0 2.3 2.3l5.9-5.9a4 4 0 0 0 5.2-5.2l-2.4 2.4-2.3-.6-.6-2.3 2.4-2.4z" />
+  </svg>
+);

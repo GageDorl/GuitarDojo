@@ -26,6 +26,12 @@ lib/theory     ─┘
 - `tuning.ts` maps `{ string, fret }` to pitches. Strings use guitarist numbering, so 1 is high E. Alternate tunings are data (`TUNINGS`).
 - `voicings.ts` parses shapes such as `"x32010"`, reports inversions, and enumerates playable voicings under span and finger constraints. A small library of common voicings is checked against the chord engine in tests. `shiftVoicing` moves a shape up the neck, turning open strings into a barre. It was added for the barre-chord lessons.
 - `scales.ts` adds `relativeMinor` and `relativeMajor`. They are needed by the relative-key lessons and the pentatonic generators.
+- **Seventh chords** are five more `CHORD_QUALITIES` entries: `major7`, `dominant7`, `minor7`, `halfDiminished7` and `diminished7`. Construction, identification, voicing search and validation needed no other changes. The validator explains a wrong seventh, or a seventh added to a triad.
+- `harmony.ts` covers keys:
+  - `diatonicChords(tonic, scale, { sevenths })` stacks every other scale note on each degree and identifies the quality from its intervals, so every key works with no lookup tables.
+  - `romanNumeral` gives I, ii, vii°, V7, viiø7 and so on.
+  - `keySignature` gives a key's sharps or flats.
+- `voicings.ts` adds the CAGED shapes. `CAGED_SHAPES` and `CAGED_MINOR_SHAPES` are data, and `cagedVoicing(shape, root, quality)` slides an open shape to any root. `COMMON_VOICINGS` entries now name their chord explicitly and include open and barre seventh voicings.
 - `src/lib/theory/reference.test.ts` checks the engine against **hand-written reference tables**. These cover the standard-tuning note chart, all 15 major scales, natural minor, both pentatonics, relative keys, interval spellings, triads, barre shapes and the five A minor pentatonic positions. These tests catch errors that self-consistency checks cannot.
 - Guitar-navigation helpers that depend on the instrument and not on theory live in `src/lib/fretboard/positions.ts`. They are the five pentatonic position windows, the fret of a note on the low string, and `rangeForVoicing` for framing diagrams.
 
@@ -73,13 +79,15 @@ lib/theory     ─┘
   | `chord-construction` / `chord-recognition` / `inversion-recognition` | Build or name triads, inversions and string groups, using `findVoicings` |
   | `scale-roots` / `scale-identification` | Tap every root in a pentatonic position / name the key of a position |
   | `scale-on-string` / `scale-degree` | Play a scale along one string / name a scale degree, in random keys |
+  | `diatonic-chord` / `diatonic-construction` | Name the chord or numeral of a degree in a key (triads or sevenths) / build it |
+  | `caged-identification` / `caged-construction` | Name the CAGED shape of a moved chord / play a chord with a given shape |
 
 - **Adding a strategy** means adding a rule type, a validator and a test. The UI needs no change. **Adding an exercise kind** means a new type and a component registered in `ExerciseView.tsx`.
 
 ### 5. Lessons and courses (`src/lib/courses`, `src/content`)
 
 - Course → Module → Lesson → Step → Block. Block types: `text` (paragraphs, lists, bold and italic), `callout`, `fretboard`, `demo`, `chromatic`, `triad-stack`, `compare`, `interval-explorer`, `note-explorer` (tap a note to see its name, unisons and octaves) and `exercise`.
-- **Curriculum.** `src/content/index.ts` lists the courses in pathway order. `src/content/curriculum.ts` is the long-term roadmap by stage: entries with a `courseId` are live, and the rest show as "coming later" on `/learn`. Each `Course` declares a `stage`, its `outcomes`, and **course-level prerequisites** (course ids). These are soft: the catalog and course page recommend them, and nothing is ever locked. Lesson prerequisites stay within a course.
+- **Curriculum.** `src/content/index.ts` lists the courses in pathway order. `src/content/curriculum.ts` defines `LEARNING_PATHS`, the long-term roadmap organised as three disciplines (theory, technique, luthiery), then stages, then courses. Entries with a `courseId` are live; the rest show on `/learn` as "coming later" in a live path, or under a whole path marked "Coming soon". The home page shows the three paths as cards (`PathCards`), built from content-free `getPathSummaries()`. Each `Course` declares a `stage`, its `outcomes`, and **course-level prerequisites** (course ids). These are soft: the catalog and course page recommend them, and nothing is ever locked. Lesson prerequisites stay within a course.
 - **Teaching pattern.** Each course moves from **labelled demonstrations** to **unlabelled recognition**, then **construction**, then **drills in random keys and positions**, ending in a scored checkpoint. Content helpers (`src/content/helpers.ts`) compute solutions from the engine. Examples are `scaleInWindow`, `notePositions`, `generatedVoicings`, `moved` for barre shapes, and `pentatonicWindow`. They keep hand-typed answers to a minimum. `BlockRenderer.tsx` maps each type to a component.
 - Each lesson declares its objectives, prerequisites (soft: recommended, not locked), estimated time and a **completion rule**. `all-exercises-solved` is used for lessons. `min-score` is used for assessments and scores first attempts only.
 - Content is TypeScript modules today, so it is type-checked and versioned with the code. Every shape is plain data, so moving content to a CMS or database later only replaces `src/content/index.ts`.

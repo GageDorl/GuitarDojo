@@ -2,7 +2,8 @@ import { ContinueLearning } from "@/components/home/ContinueLearning";
 import { HeroBoard } from "@/components/home/HeroBoard";
 import { ButtonLink } from "@/components/ui/Button";
 import { SITE } from "@/config/site";
-import { getCourseOutlines } from "@/content";
+import { getCourseOutlines, getPathSummaries } from "@/content";
+import { PathCards } from "@/components/course/LearningPaths";
 
 const FEATURES = [
   {
@@ -40,6 +41,14 @@ export default function HomePage() {
           </div>
         </div>
         <HeroBoard />
+      </section>
+
+      <section className="pb-12" aria-labelledby="paths-heading">
+        <h2 id="paths-heading" className="text-2xl font-bold tracking-tight">
+          Three ways to grow as a guitarist
+        </h2>
+        <p className="mt-1 mb-5 text-muted">Start with theory and the fretboard today. Technique and luthiery are on the way.</p>
+        <PathCards paths={getPathSummaries()} hrefFor={(id) => `/learn#path-${id}`} />
       </section>
 
       <section className="grid gap-4 pb-16 sm:grid-cols-3" aria-label="Why Guitar Dojo">

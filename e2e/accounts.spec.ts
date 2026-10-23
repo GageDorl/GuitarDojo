@@ -16,9 +16,18 @@ const uniqueEmail = (label: string, project: string) =>
 
 async function mailLink(to: string, subject: string): Promise<string> {
   for (let i = 0; i < 50; i++) {
-    const files = readdirSync(MAIL_DIR, { withFileTypes: true }).filter((f) => f.isFile()).map((f) => f.name).sort().reverse();
+    const files = readdirSync(MAIL_DIR, { withFileTypes: true })
+      .filter((f) => f.isFile() && f.name.endsWith(".json"))
+      .map((f) => f.name)
+      .sort()
+      .reverse();
     for (const file of files) {
-      const mail = JSON.parse(readFileSync(path.join(MAIL_DIR, file), "utf8")) as { to: string; subject: string; text: string };
+      let mail: { to: string; subject: string; text: string };
+      try {
+        mail = JSON.parse(readFileSync(path.join(MAIL_DIR, file), "utf8"));
+      } catch {
+        continue; // still being written
+      }
       if (mail.to === to && mail.subject.includes(subject)) return /https?:\/\/\S+/.exec(mail.text)![0];
     }
     await new Promise((r) => setTimeout(r, 200));
@@ -42,7 +51,8 @@ async function signUpAndVerify(page: Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/check-email/);
+  // Password hashing on a shared test database can be slow when many tests run in parallel.
+  await expect(page).toHaveURL(/check-email/, { timeout: 20_000 });
   await page.goto(await mailLink(email, "Confirm your email"));
   await expect(page).toHaveURL(/\/account\?verified=1/);
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-status", "synced");
@@ -102,7 +112,8 @@ test("unverified accounts can't sign in", async ({ page }, info) => {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/check-email/);
+  // Password hashing on a shared test database can be slow when many tests run in parallel.
+  await expect(page).toHaveURL(/check-email/, { timeout: 20_000 });
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);

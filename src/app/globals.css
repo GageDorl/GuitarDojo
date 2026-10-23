@@ -101,6 +101,7 @@
   --color-third: var(--role-third);
   --color-fifth: var(--role-fifth);
   --color-tone: var(--role-tone);
+  --color-seventh: var(--role-seventh);
   --color-correct: var(--correct);
   --color-correct-soft: var(--correct-soft);
   --color-incorrect: var(--incorrect);

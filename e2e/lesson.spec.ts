@@ -43,6 +43,48 @@ test("the catalog shows the learning path with recommended prerequisites", async
   await expect(page.getByRole("heading", { level: 1, name: "Five-Note Scales" })).toBeVisible();
 });
 
+test("learn and home pages map all three learning paths", async ({ page }) => {
+  await page.goto("/learn");
+  await expect(page.getByTestId("path-card-theory")).toHaveAttribute("data-status", "available");
+  await expect(page.getByTestId("path-card-technique")).toHaveAttribute("data-status", "coming-soon");
+  await expect(page.getByTestId("path-card-luthiery")).toHaveAttribute("data-status", "coming-soon");
+  await page.getByTestId("path-card-luthiery").click();
+  await expect(page).toHaveURL(/#path-luthiery/);
+  await expect(page.locator("#path-luthiery")).toContainText("Building Your First Electric Guitar");
+  await expect(page.locator("#path-technique")).toContainText("Coming soon");
+  for (const id of ["keys-and-progressions", "caged-system", "seventh-chords"]) {
+    await expect(page.getByTestId(`course-card-${id}`)).toBeVisible();
+  }
+  await page.goto("/");
+  await expect(page.getByTestId("path-card-technique")).toContainText("Coming soon");
+});
+
+test("new courses: build a chord from a Roman numeral and play a CAGED shape", async ({ page }) => {
+  await page.goto("/learn/keys-and-progressions/roman-numerals");
+  await page.getByRole("button", { name: /^Step 2:/ }).click();
+  const iv = await tap(page, "build-iv-in-g", [
+    [5, 3],
+    [4, 2],
+    [3, 0],
+    [2, 1],
+    [1, 0],
+  ]);
+  await iv.getByRole("button", { name: "Check" }).click();
+  await expect(iv.getByTestId("feedback")).toHaveAttribute("data-correct", "true");
+
+  await page.goto("/learn/seventh-chords/major-and-minor-sevenths");
+  await page.getByRole("button", { name: /^Step 2:/ }).click();
+  const am7 = await tap(page, "build-am7", [
+    [5, 0],
+    [4, 2],
+    [3, 0],
+    [2, 1],
+    [1, 0],
+  ]);
+  await am7.getByRole("button", { name: "Check" }).click();
+  await expect(am7.getByTestId("feedback")).toHaveAttribute("data-correct", "true");
+});
+
 test("a recall drill runs randomized rounds and records a pass", async ({ page }) => {
   await page.goto("/learn/notes-and-fretboard/strings-and-tuning");
   await page.getByRole("button", { name: /^Step 2:/ }).click();
@@ -188,6 +230,9 @@ test("lesson pages never scroll sideways", async ({ page }) => {
     "/learn/major-minor-scales/transposition",
     "/learn/pentatonic-scales/five-positions",
     "/learn/chord-voicings/barre-chords",
+    "/learn/keys-and-progressions/progressions-on-the-neck",
+    "/learn/caged-system/caged-sequence",
+    "/learn/seventh-chords/moveable-and-extended",
   ]) {
     await page.goto(lesson);
     const steps = await page.getByRole("navigation", { name: "Lesson steps" }).getByRole("button").count();

@@ -6,10 +6,17 @@
  * theory engine, and every multiple-choice item an `answer` that is one of its choices.
  */
 import {
+  type CagedShape,
+  type ChordQualityId,
   type FretPosition,
   type Inversion,
   type Note,
+  CAGED_MINOR_SHAPES,
+  CAGED_ORDER,
+  CAGED_SHAPES,
   CHORD_QUALITIES,
+  cagedVoicing,
+  diatonicChords,
   INVERSION_NAMES,
   STANDARD_TUNING,
   buildChord,
@@ -260,20 +267,33 @@ const chordRecognition: Gen<"chord-recognition"> = (g, id, rng) =>
     const quality = pick(rng, g.qualities);
     const chord = buildChord(root, quality);
     const strings = g.stringGroups ? pick(rng, g.stringGroups) : undefined;
-    const voicings = findVoicings(STANDARD_TUNING, chord, { range: g.range, strings, minStrings: strings?.length ?? 3, limit: 20 });
+    const voicings = findVoicings(STANDARD_TUNING, chord, {
+      range: g.range,
+      strings,
+      minStrings: strings?.length ?? Math.max(3, chord.tones.length),
+      limit: 20,
+    });
     if (voicings.length === 0) return undefined;
     const shape = voicingShape(pick(rng, voicings));
     const answer = chordName(chord);
-    const parallel = chordName(buildChord(root, quality === "major" ? "minor" : "major"));
-    const relativeRoot = quality === "major" ? relativeMinor(root) : transpose(parseNote(root), "m3");
-    const relative = chordName(buildChord(relativeRoot, quality === "major" ? "minor" : "major"));
+    // Closest confusions first: same root with another quality (C major vs C minor, Cmaj7 vs C7),
+    // then the relative major/minor, then other roots.
+    const sameRoot = shuffle(rng, g.qualities.filter((q) => q !== quality)).map((q) => chordName(buildChord(root, q)));
+    const flip = quality === "major" ? "minor" : quality === "minor" ? "major" : undefined;
+    const parallel = flip ? [chordName(buildChord(root, flip))] : [];
+    const relative =
+      quality === "major"
+        ? [chordName(buildChord(relativeMinor(root), "minor"))]
+        : quality === "minor"
+          ? [chordName(buildChord(transpose(parseNote(root), "m3"), "major"))]
+          : [];
     const others = shuffle(rng, g.roots.filter((r) => r !== root)).map((r) => chordName(buildChord(r, pick(rng, g.qualities))));
     const item: MultipleChoiceExercise = {
       id,
       kind: "multiple-choice",
       prompt: "Name this chord.",
       board: chordBoard(root, quality, shape),
-      choices: choicesFrom(rng, answer, [parallel, relative, ...others]),
+      choices: choicesFrom(rng, answer, [...parallel, ...sameRoot.slice(0, 2), ...relative, ...others]),
       answer,
     };
     return item;
@@ -393,6 +413,109 @@ const scaleDegree: Gen<"scale-degree"> = (g, id, rng) => {
 
 // ---------------------------------------------------------------------------------------------
 
+// ----- diatonic harmony ----------------------------------------------------------------------
+
+const keyName = (key: string, scale: "major" | "natural-minor") => `${noteName(parseNote(key))} ${scale === "major" ? "major" : "minor"}`;
+const ascii = (n: Note) => noteName(n, { ascii: true });
+
+const diatonicChord: Gen<"diatonic-chord"> = (g, id, rng) => {
+  const key = pick(rng, g.keys);
+  const chords = diatonicChords(key, g.scale, { sevenths: g.sevenths });
+  const degrees = g.degrees ?? [1, 2, 3, 4, 5, 6, 7];
+  const target = chords[pick(rng, degrees) - 1]!;
+  const ask = g.ask === "mixed" ? pick(rng, ["chord", "numeral"] as const) : g.ask;
+  const near = chords.filter((c) => Math.abs(c.degree - target.degree) === 1 || Math.abs(c.degree - target.degree) === 3);
+
+  if (ask === "chord") {
+    const answer = chordName(target.chord);
+    const otherQualities = (g.sevenths ? (["major7", "dominant7", "minor7", "halfDiminished7"] as const) : (["major", "minor", "diminished"] as const))
+      .filter((q) => q !== target.chord.quality.id)
+      .map((q) => chordName(buildChord(target.chord.root, q)));
+    return {
+      id,
+      kind: "multiple-choice",
+      prompt: `What is the **${target.numeral}** chord in ${keyName(key, g.scale)}?`,
+      choices: choicesFrom(rng, answer, [...shuffle(rng, otherQualities).slice(0, 1), ...shuffle(rng, near.map((c) => chordName(c.chord)))]),
+      answer,
+    };
+  }
+  const answer = target.numeral;
+  const wrongCase = /[a-z]/.test(answer[0]!) ? answer.replace(/^[iv]+/, (m) => m.toUpperCase()) : answer.replace(/^[IV]+/, (m) => m.toLowerCase());
+  return {
+    id,
+    kind: "multiple-choice",
+    prompt: `In ${keyName(key, g.scale)}, **${chordName(target.chord)}** is which chord?`,
+    choices: choicesFrom(rng, answer, [...(g.sevenths ? [] : [wrongCase.replace(/[°ø]/, "")]), ...shuffle(rng, near.map((c) => c.numeral))]),
+    answer,
+  };
+};
+
+const diatonicConstruction: Gen<"diatonic-construction"> = (g, id, rng) =>
+  attempt(() => {
+    const key = pick(rng, g.keys);
+    const chords = diatonicChords(key, g.scale, { sevenths: g.sevenths });
+    const target = chords[pick(rng, g.degrees ?? [1, 4, 5, 6]) - 1]!;
+    const chord = target.chord;
+    const voicings = findVoicings(STANDARD_TUNING, chord, { range: g.range, minStrings: Math.max(3, chord.tones.length), limit: 30 });
+    if (voicings.length === 0) return undefined;
+    const item: FretboardExercise = {
+      id,
+      kind: "fretboard",
+      task: "construct",
+      prompt: `Build the **${target.numeral}** chord in ${keyName(key, g.scale)}.`,
+      hint: `Count up the ${keyName(key, g.scale)} scale to degree ${target.degree}: it's ${chordName(chord)}.`,
+      board: { range: g.range, labels: "none", layout: BUILD },
+      selection: "per-string",
+      rule: { type: "chord", chord: { root: ascii(chord.root), quality: chord.quality.id as ChordQualityId } },
+      solution: voicingPositions(pick(rng, voicings.slice(0, 8))),
+    };
+    return item;
+  });
+
+// ----- CAGED ---------------------------------------------------------------------------------
+
+function cagedChoice(g: { roots: readonly string[]; shapes?: readonly CagedShape[]; quality?: "major" | "minor" }, rng: Rng) {
+  const quality = g.quality ?? "major";
+  const available = (g.shapes ?? CAGED_ORDER).filter((s) => quality === "major" || CAGED_MINOR_SHAPES[s]);
+  const shapeName = pick(rng, available);
+  const root = pick(rng, g.roots);
+  const voicing = cagedVoicing(shapeName, root, quality);
+  const chord = buildChord(root, quality);
+  return { quality, available, shapeName, root, voicing, chord };
+}
+
+const cagedIdentification: Gen<"caged-identification"> = (g, id, rng) => {
+  const { quality, available, shapeName, root, voicing, chord } = cagedChoice(g, rng);
+  const shape = voicingShape(voicing);
+  const board = chordBoard(root, quality, shape);
+  return {
+    id,
+    kind: "multiple-choice",
+    prompt: `This is **${chordName(chord)}**. Which CAGED shape is it? The squares are its roots.`,
+    board: { ...board, labels: "none", roles: true },
+    choices: available.map((s) => ({ id: `${s} shape`, label: `${s} shape` })),
+    answer: `${shapeName} shape`,
+  };
+};
+
+const cagedConstruction: Gen<"caged-construction"> = (g, id, rng) => {
+  const { quality, shapeName, voicing, chord } = cagedChoice(g, rng);
+  const positions = voicingPositions(voicing);
+  const def = quality === "major" ? CAGED_SHAPES[shapeName] : CAGED_MINOR_SHAPES[shapeName]!;
+  const top = Math.max(...positions.map((p) => p.fret));
+  return {
+    id,
+    kind: "fretboard",
+    task: "construct",
+    prompt: `Play **${chordName(chord)}** with the **${shapeName}${quality === "minor" ? "m" : ""} shape**.`,
+    hint: `Find ${noteName(chord.root)} on the ${stringName(def.rootString)} (the shape's root string), then build the open ${def.open.root}${quality === "minor" ? "m" : ""} shape around it.`,
+    board: { range: { start: 0, end: Math.max(12, top + 1) }, labels: "none", layout: BUILD },
+    selection: "per-string",
+    rule: { type: "exact-positions", positions, context: { chord: { root: ascii(chord.root), quality } } },
+    solution: positions,
+  };
+};
+
 type GeneratorMap = { [K in DrillGenerator["type"]]: Gen<K> };
 
 export const DRILL_GENERATORS: GeneratorMap = {
@@ -407,6 +530,10 @@ export const DRILL_GENERATORS: GeneratorMap = {
   "scale-identification": scaleIdentification,
   "scale-on-string": scaleOnString,
   "scale-degree": scaleDegree,
+  "diatonic-chord": diatonicChord,
+  "diatonic-construction": diatonicConstruction,
+  "caged-identification": cagedIdentification,
+  "caged-construction": cagedConstruction,
 };
 
 /** Generate one round. Avoids repeating the previous round's prompt+answer where possible. */

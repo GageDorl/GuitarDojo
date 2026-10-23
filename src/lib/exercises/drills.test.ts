@@ -185,4 +185,75 @@ describe("drill generators", () => {
       expect(item.solution).toHaveLength(7);
     }
   });
+
+  it("diatonic-chord answers match a hand-written harmony chart", () => {
+    // Chord names per key, degree 1..7 (standard tables, not computed).
+    const CHART: Record<string, string[]> = {
+      "C major": ["C major", "D minor", "E minor", "F major", "G major", "A minor", "B diminished"],
+      "G major": ["G major", "A minor", "B minor", "C major", "D major", "E minor", "F♯ diminished"],
+      "F major": ["F major", "G minor", "A minor", "B♭ major", "C major", "D minor", "E diminished"],
+      "A minor": ["A minor", "B diminished", "C major", "D minor", "E minor", "F major", "G major"],
+      "E minor": ["E minor", "F♯ diminished", "G major", "A minor", "B minor", "C major", "D major"],
+    };
+    const NUMERALS: Record<string, string[]> = {
+      major: ["I", "ii", "iii", "IV", "V", "vi", "vii°"],
+      minor: ["i", "ii°", "III", "iv", "v", "VI", "VII"],
+    };
+    for (const scale of ["major", "natural-minor"] as const) {
+      const keys = scale === "major" ? ["C", "G", "F"] : ["A", "E"];
+      for (const item of sample({ type: "diatonic-chord", keys, scale, ask: "mixed" })) {
+        if (item.kind !== "multiple-choice") throw new Error("expected multiple choice");
+        const keyLabel = /[Ii]n ([A-G][♯♭]? (?:major|minor))/.exec(item.prompt)![1]!;
+        const names = CHART[keyLabel]!;
+        const numerals = NUMERALS[scale === "major" ? "major" : "minor"]!;
+        const asked = /\*\*([^*]+)\*\* chord in/.exec(item.prompt);
+        if (asked) expect(item.answer).toBe(names[numerals.indexOf(asked[1]!)]);
+        else {
+          const chordAsked = /\*\*([^*]+)\*\* is which chord/.exec(item.prompt)![1]!;
+          expect(item.answer).toBe(numerals[names.indexOf(chordAsked)]);
+        }
+      }
+    }
+  });
+
+  it("diatonic-construction asks for the right chord and its solution plays it", () => {
+    const C_MAJOR_TRIADS: Record<string, string> = { I: "C major", IV: "F major", V: "G major", vi: "A minor" };
+    for (const item of sample({ type: "diatonic-construction", keys: ["C"], scale: "major", range: { start: 0, end: 12 } })) {
+      if (item.kind !== "fretboard" || item.rule.type !== "chord") throw new Error("expected chord item");
+      solves(item);
+      const numeral = /\*\*([^*]+)\*\*/.exec(item.prompt)![1]!;
+      expect(`${item.rule.chord.root} ${item.rule.chord.quality}`).toBe(C_MAJOR_TRIADS[numeral]);
+    }
+  });
+
+  it("CAGED items use the named shape, moved to the right root", () => {
+    // Open shapes and their root pitch classes, written out by hand.
+    const OPEN: Record<string, { frets: (number | null)[]; rootPc: number }> = {
+      C: { frets: [null, 3, 2, 0, 1, 0], rootPc: 0 },
+      A: { frets: [null, 0, 2, 2, 2, 0], rootPc: 9 },
+      G: { frets: [3, 2, 0, 0, 0, 3], rootPc: 7 },
+      E: { frets: [0, 2, 2, 1, 0, 0], rootPc: 4 },
+      D: { frets: [null, null, 0, 2, 3, 2], rootPc: 2 },
+    };
+    for (const item of sample({ type: "caged-identification", roots: ["C", "D", "E", "F", "G", "A", "B"] })) {
+      if (item.kind !== "multiple-choice") throw new Error("expected multiple choice");
+      const shapeName = item.answer.charAt(0);
+      const offset = (ROOT_PC[item.board!.chord!.root]! - OPEN[shapeName]!.rootPc + 12) % 12;
+      const expected = OPEN[shapeName]!.frets.map((f) => (f === null ? null : f + offset));
+      expect(parseVoicing(item.board!.chord!.voicing!).frets).toEqual(expected);
+    }
+    for (const item of sample({ type: "caged-construction", roots: ["C", "D", "E", "F", "G", "A", "B"] })) solves(item);
+    for (const item of sample({ type: "caged-construction", roots: ["C", "D", "E", "G", "A"], quality: "minor" })) solves(item);
+  });
+
+  it("chord recognition distinguishes seventh chords", () => {
+    const FORMULA = { major7: [0, 4, 7, 11], dominant7: [0, 4, 7, 10], minor7: [0, 3, 7, 10] } as const;
+    for (const item of sample({ type: "chord-recognition", roots: ["C", "D", "E", "G", "A"], qualities: ["major7", "dominant7", "minor7"], range: { start: 0, end: 12 } })) {
+      if (item.kind !== "multiple-choice") throw new Error("expected multiple choice");
+      const chord = item.board!.chord!;
+      const rootPc = ROOT_PC[chord.root]!;
+      const pcs = new Set(voicingPositions(parseVoicing(chord.voicing!)).map((p) => midiOf(p) % 12));
+      expect(pcs).toEqual(new Set(FORMULA[chord.quality as keyof typeof FORMULA].map((i) => (rootPc + i) % 12)));
+    }
+  });
 });

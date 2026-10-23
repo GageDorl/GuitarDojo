@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getEnv } from "@/server/env";
 
@@ -22,7 +22,9 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
   if (env.EMAIL_TRANSPORT === "log") {
     await mkdir(env.MAIL_LOG_DIR, { recursive: true });
     const file = path.join(env.MAIL_LOG_DIR, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
-    await writeFile(file, JSON.stringify({ ...message, sentAt: new Date().toISOString() }, null, 2));
+    // Write then rename, so readers (tests following links) never see a half-written file.
+    await writeFile(`${file}.tmp`, JSON.stringify({ ...message, sentAt: new Date().toISOString() }, null, 2));
+    await rename(`${file}.tmp`, file);
     console.info(`[email:log] to=${message.to} subject="${message.subject}"\n${message.text}`);
     return;
   }

@@ -24,6 +24,11 @@ import {
   voicingInversion,
   voicingMatchesChord,
   voicingShape,
+  CAGED_ORDER,
+  cagedVoicing,
+  chordSymbol,
+  diatonicChords,
+  keySignature,
 } from ".";
 
 const ascii = (notes: { letter: string; accidental: number }[]) =>
@@ -252,6 +257,102 @@ describe("reference: pentatonic positions", () => {
           }
           expect(count, `root fret ${rootFret} position ${p} string ${string}`).toBe(2);
         }
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Harmony, seventh chords and CAGED (hand-written expectations)
+// ---------------------------------------------------------------------------------------------
+
+/** Diatonic chord symbols per key, from a standard harmony chart. */
+const DIATONIC_TRIADS: [string, "major" | "natural-minor", string][] = [
+  ["C", "major", "C Dm Em F G Am Bdim"],
+  ["G", "major", "G Am Bm C D Em F#dim"],
+  ["D", "major", "D Em F#m G A Bm C#dim"],
+  ["F", "major", "F Gm Am Bb C Dm Edim"],
+  ["Bb", "major", "Bb Cm Dm Eb F Gm Adim"],
+  ["A", "natural-minor", "Am Bdim C Dm Em F G"],
+  ["E", "natural-minor", "Em F#dim G Am Bm C D"],
+];
+const DIATONIC_NUMERALS_MAJOR = "I ii iii IV V vi vii°";
+const DIATONIC_NUMERALS_MINOR = "i ii° III iv v VI VII";
+const DIATONIC_SEVENTHS: [string, string][] = [
+  ["C", "Cmaj7 Dm7 Em7 Fmaj7 G7 Am7 Bm7b5"],
+  ["G", "Gmaj7 Am7 Bm7 Cmaj7 D7 Em7 F#m7b5"],
+  ["F", "Fmaj7 Gm7 Am7 Bbmaj7 C7 Dm7 Em7b5"],
+];
+const SEVENTH_SPELLINGS: [string, "major7" | "dominant7" | "minor7" | "halfDiminished7" | "diminished7", string][] = [
+  ["C", "major7", "C E G B"],
+  ["G", "dominant7", "G B D F"],
+  ["A", "minor7", "A C E G"],
+  ["B", "halfDiminished7", "B D F A"],
+  ["B", "diminished7", "B D F Ab"],
+  ["Eb", "major7", "Eb G Bb D"],
+  ["F#", "minor7", "F# A C# E"],
+  ["E", "dominant7", "E G# B D"],
+  ["C#", "diminished7", "C# E G Bb"],
+];
+/** The five CAGED shapes of C major, from a reference chart (low string to high). */
+const CAGED_C: Record<string, string> = {
+  C: "x32010",
+  A: "x35553",
+  G: "875558",
+  E: "8.10.10.9.8.8",
+  D: "x.x.10.12.13.12",
+};
+
+const asciiSymbol = (s: string) => s.replace("♭5", "b5").replace(/♭/g, "b").replace(/♯/g, "#");
+
+describe("reference: diatonic harmony", () => {
+  it.each(DIATONIC_TRIADS)("%s %s triads", (tonic, scale, expected) => {
+    const chords = diatonicChords(tonic, scale);
+    expect(chords.map((c) => asciiSymbol(chordSymbol(c.chord))).join(" ")).toBe(expected);
+    expect(chords.map((c) => c.numeral).join(" ")).toBe(scale === "major" ? DIATONIC_NUMERALS_MAJOR : DIATONIC_NUMERALS_MINOR);
+  });
+
+  it.each(DIATONIC_SEVENTHS)("%s major seventh chords", (tonic, expected) => {
+    const chords = diatonicChords(tonic, "major", { sevenths: true });
+    expect(chords.map((c) => asciiSymbol(chordSymbol(c.chord))).join(" ")).toBe(expected);
+    expect(chords.map((c) => c.numeral).join(" ")).toBe("Imaj7 ii7 iii7 IVmaj7 V7 vi7 viiø7");
+  });
+
+  it("counts key signatures", () => {
+    const count = (k: string) => {
+      const sig = keySignature(k);
+      return sig.sharps.length ? `${sig.sharps.length}#` : sig.flats.length ? `${sig.flats.length}b` : "0";
+    };
+    expect(["C", "G", "D", "A", "E", "B", "F#", "F", "Bb", "Eb", "Ab", "Db"].map(count).join(" ")).toBe(
+      "0 1# 2# 3# 4# 5# 6# 1b 2b 3b 4b 5b",
+    );
+    expect(ascii([...keySignature("A").sharps])).toBe("C# F# G#");
+    expect(ascii([...keySignature("Eb").flats])).toBe("Eb Ab Bb");
+  });
+});
+
+describe("reference: seventh chords", () => {
+  it.each(SEVENTH_SPELLINGS)("%s %s", (root, quality, notes) => {
+    expect(ascii([...buildChord(root, quality).tones.map((t) => t.note)])).toBe(notes);
+  });
+});
+
+describe("reference: CAGED", () => {
+  it("moves each shape to the standard C major voicings", () => {
+    for (const shapeName of CAGED_ORDER) {
+      expect(voicingShape(cagedVoicing(shapeName, "C")), shapeName).toBe(CAGED_C[shapeName]);
+    }
+  });
+
+  it("produces the named chord for every root, shape and quality", () => {
+    for (const root of ["C", "D", "E", "F", "G", "A", "B", "Bb", "F#"]) {
+      for (const shapeName of CAGED_ORDER) {
+        const v = cagedVoicing(shapeName, root);
+        expect(voicingMatchesChord(STANDARD_TUNING, buildChord(root, "major"), v), `${shapeName} shape ${root}`).toBe(true);
+      }
+      for (const shapeName of ["A", "E", "D"] as const) {
+        const v = cagedVoicing(shapeName, root, "minor");
+        expect(voicingMatchesChord(STANDARD_TUNING, buildChord(root, "minor"), v), `${shapeName}m shape ${root}`).toBe(true);
       }
     }
   });

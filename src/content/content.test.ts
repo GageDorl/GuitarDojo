@@ -2,8 +2,18 @@ import { describe, expect, it } from "vitest";
 import { allLessons, evaluateCompletion, lessonExercises, type LessonBlock } from "@/lib/courses";
 import { type DrillItem, type Exercise, generateDrillItem, seededRng, validate } from "@/lib/exercises";
 import { resolveFretboard } from "@/lib/fretboard";
-import { buildChord, parseNote, samePosition } from "@/lib/theory";
-import { COURSES, CURRICULUM } from ".";
+import {
+  STANDARD_TUNING,
+  buildChord,
+  chordToneForPitchClass,
+  parseNote,
+  parseVoicing,
+  pitchClassAt,
+  samePosition,
+  voicingMatchesChord,
+  voicingPositions,
+} from "@/lib/theory";
+import { COURSES, LEARNING_PATHS, liveCourseIds } from ".";
 import { majorShape, minorShape } from "./courses/scales/lessons/shapes";
 
 const lessons = COURSES.flatMap((course) => allLessons(course).map((lesson) => ({ course, lesson })));
@@ -77,8 +87,22 @@ describe("curriculum structure", () => {
   it("has unique course ids, all registered in the roadmap", () => {
     const ids = COURSES.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
-    const roadmapIds = CURRICULUM.flatMap((s) => s.courses.flatMap((c) => (c.courseId ? [c.courseId] : [])));
+    const roadmapIds = LEARNING_PATHS.flatMap(liveCourseIds);
     expect([...roadmapIds].sort()).toEqual([...ids].sort());
+  });
+
+  it("marks a learning path available exactly when it has live courses", () => {
+    expect(LEARNING_PATHS.map((p) => p.id)).toEqual(["theory", "technique", "luthiery"]);
+    for (const path of LEARNING_PATHS) {
+      expect(path.status, path.id).toBe(liveCourseIds(path).length > 0 ? "available" : "coming-soon");
+      for (const stage of path.stages) {
+        for (const entry of stage.courses) {
+          if (!entry.courseId) expect(entry.summary, `${path.id}: "${entry.title}" needs a summary`).toBeTruthy();
+        }
+      }
+    }
+    const titles = LEARNING_PATHS.flatMap((p) => p.stages.flatMap((s) => s.courses.map((c) => c.title)));
+    expect(new Set(titles).size).toBe(titles.length);
   });
 
   it("orders courses so recommended prerequisites come first (no cycles)", () => {
@@ -157,7 +181,24 @@ describe.each(lessons)("$course.id / $lesson.id", ({ course, lesson }) => {
   it("resolves every fretboard and diagram", () => {
     for (const s of lesson.steps) {
       for (const block of s.blocks) {
-        for (const spec of boardsIn(block)) expect(() => resolveFretboard(spec)).not.toThrow();
+        for (const spec of boardsIn(block)) {
+          expect(() => resolveFretboard(spec)).not.toThrow();
+          // A diagram labelled as a chord may only contain that chord's notes. (Complete chords are
+          // checked too unless the voicing is a deliberate partial, e.g. a build-up demo frame.)
+          if (spec.chord?.voicing) {
+            const chord = buildChord(spec.chord.root, spec.chord.quality);
+            const positions = voicingPositions(parseVoicing(spec.chord.voicing));
+            for (const p of positions) {
+              expect(
+                chordToneForPitchClass(chord, pitchClassAt(STANDARD_TUNING, p)),
+                `${lesson.id}: ${spec.chord.voicing} has a note outside ${spec.chord.root} ${spec.chord.quality}`,
+              ).toBeDefined();
+            }
+            if (positions.length >= chord.tones.length) {
+              expect(voicingMatchesChord(STANDARD_TUNING, chord, parseVoicing(spec.chord.voicing)), `${lesson.id}: ${spec.chord.voicing} is missing a chord tone`).toBe(true);
+            }
+          }
+        }
         if (block.type === "chromatic") {
           for (const h of block.highlight ?? []) expect(() => parseNote(h.note)).not.toThrow();
         }

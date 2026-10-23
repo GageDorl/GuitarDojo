@@ -121,12 +121,27 @@ function explainWrongChordNote(chord: Chord, pc: number): FeedbackIssue {
       )}: ${noteName(third.note)}.`,
     };
   }
-  if (fifth && (semis === 6 || semis === 8)) {
+  if (fifth && semis >= 6 && semis <= 8 && Math.abs(semis - semitones(fifth.interval)) === 1) {
     return {
       code: "wrong-fifth",
-      message: `${noteName(wrong)} is ${semis === 6 ? "a semitone below" : "a semitone above"} the fifth. The fifth of ${name} is ${noteName(
+      message: `${noteName(wrong)} is ${semis < semitones(fifth.interval) ? "a semitone below" : "a semitone above"} the fifth. The fifth of ${name} is ${noteName(
         fifth.note,
       )}, ${article(intervalName(fifth.interval))} above the root.`,
+    };
+  }
+  const seventh = chord.tones.find((t) => t.role === "seventh");
+  if (seventh && semis >= 9 && semis <= 11 && Math.abs(semis - semitones(seventh.interval)) === 1) {
+    return {
+      code: "wrong-seventh",
+      message: `${noteName(wrong)} is ${article(intervalName(wrongInterval))} above ${noteName(root)}. ${name} needs ${article(
+        intervalName(seventh.interval),
+      )}: ${noteName(seventh.note)}.`,
+    };
+  }
+  if (!seventh && (semis === 10 || semis === 11)) {
+    return {
+      code: "wrong-seventh",
+      message: `${noteName(wrong)} adds a seventh. ${name} is a triad: just ${list(chord.tones.map((t) => noteName(t.note)))}.`,
     };
   }
   return {

@@ -7,3 +7,4 @@ export * from "./chords";
 export * from "./scales";
 export * from "./tuning";
 export * from "./voicings";
+export * from "./harmony";
