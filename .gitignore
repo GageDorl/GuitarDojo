@@ -7,5 +7,15 @@ coverage/
 test-results/
 playwright-report/
 blob-report/
-.env*.local
 .DS_Store
+
+# Local databases (PGlite), captured dev emails, backups, deploy state on the server
+.data/
+backups/
+.deploy-history
+.deploy.conf
+
+# Secrets: never commit real environment files. .env.example is the template.
+.env
+.env.*
+!.env.example

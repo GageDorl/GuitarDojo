@@ -15,7 +15,8 @@ Checkboxes reflect what is built and tested in this repository. Items marked _(p
 | 5. Luthiery Path | Not started |
 | 6. Standalone Tools | Not started. Explorers exist only inside lessons. |
 | 7. Audio & Live Assessment | Not started |
-| 8. Accounts & Personalization | Not started. The progress model is ready for cloud sync. |
+| 8. Accounts & Personalization | _(partial)_ Optional accounts with verification and recovery, plus cross-device progress sync, built and tested. Personalization not started. |
+| Production hosting | Prepared, not yet deployed: Docker Compose, Caddy, PostgreSQL, encrypted off-server backups (docs/DEPLOYMENT.md). |
 | 9. Content, Community & Shop | Not started (intentionally) |
 | 10. Monetization | Not started (intentionally) |
 
@@ -435,15 +436,16 @@ Microphone-based chord identification and reliable timing assessment should be t
 ## Phase 8 — Accounts, Personalization & Learning Analytics
 
 **Priority: Medium**
-**Status: Not started. Progress is stored as events behind a swappable storage layer, so a backend can be added without changing the UI.**
+**Status: _(partial)_ Accounts and sync are built and tested locally, and ready to deploy. Personalization and analytics are not started.**
 
 ### Accounts and cloud synchronization
 
-- [ ] User registration and authentication.
-- [ ] Cloud-backed progress persistence.
-- [ ] Cross-device synchronization.
-- [ ] Preserve and migrate existing local progress. _(The progress data is versioned, and its parser is the place to add migrations.)_
-- [ ] Student profiles and preferences.
+- [x] User registration and authentication. Better Auth with email and password, required email verification, password recovery, database-backed rate limiting, and server-side sessions that revoke immediately. Registration stays closed until email delivery is configured.
+- [x] Cloud-backed progress persistence. An idempotent PostgreSQL event log with a rebuildable snapshot.
+- [x] Cross-device synchronization. The server replays events in a deterministic order, the client keeps an offline outbox, and tabs refresh when they regain focus.
+- [x] Preserve and migrate existing local progress. Anonymous progress is imported once on sign-in, with a content-hash id, and the merge never loses completed work.
+- [ ] Student profiles and preferences. _(partial: name, email, password change and sign-out only.)_
+- [ ] Account deletion and data export.
 
 ### Personalized education
 
@@ -514,7 +516,7 @@ Do not implement e-commerce functionality until there is a clear business reason
 ## Phase 10 — Business Development & Monetization
 
 **Priority: Explore after initial user validation**
-**Status: Not started.**
+**Status: Not started. All content is free during the public beta. The architecture is ready for paid content: a central server-side access layer, per-course access rules that currently mark everything public, and an entitlement model that supports subscriptions, purchases, promotions and admin grants. No payment code or billing tables exist yet; "Future: paid courses" in docs/DEPLOYMENT.md describes where they connect.**
 
 Possible business models:
 
@@ -597,7 +599,7 @@ These should continue throughout development. A checked item is a practice that 
 7. Add daily practice scheduling and performance tracking.
 8. Develop standalone chord, scale, and interval explorers.
 9. Implement audio demonstrations.
-10. Introduce student accounts and synchronized progress when needed.
+10. ~~Introduce student accounts and synchronized progress when needed.~~ **Built; launching with the public beta.**
 
 **Long-term priorities**
 

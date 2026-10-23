@@ -5,15 +5,19 @@
 Dependencies point downward only. The lower four layers are framework-free TypeScript and are unit-tested in Node.
 
 ```
-app/ (routes)  ─┐
-components/    ─┤  React
-content/       ─┘  typed data, no React
-lib/courses    ─┐
-lib/progress   ─┤
-lib/exercises  ─┤  pure TypeScript
+app/ (routes, API)  ─┐
+components/         ─┤  React (client components never import content/ or server/)
+server/             ─┤  server-only: auth, database, progress API, access checks
+content/            ─┘  server-only typed data (curriculum, access rules)
+lib/access     ─┐
+lib/courses    ─┤
+lib/progress   ─┤  pure TypeScript
+lib/exercises  ─┤
 lib/fretboard  ─┤
 lib/theory     ─┘
 ```
+
+`src/content` and `src/server` import `server-only`, so a client component importing them is a build error. That guarantee is what makes server-side access control meaningful: lesson content reaches the browser only through the lesson page, after authorization.
 
 ### 1. Theory engine (`src/lib/theory`)
 
@@ -83,8 +87,54 @@ lib/theory     ─┘
 ### 6. Progress (`src/lib/progress`)
 
 - **Event-sourced.** UI actions dispatch events: `lesson-visited`, `exercise-attempted`, `lesson-completed`, `lesson-reset` and `progress-cleared`. A pure reducer folds them into a snapshot. The snapshot holds per-lesson status, the resume step, and per-exercise attempts, correct and incorrect counts, first-attempt correctness, best score and last visited.
-- `ProgressRepository` is the persistence boundary. `LocalProgressRepository` writes the snapshot to localStorage, with a schema version and defensive parsing. Its optional `record(event)` hook is where an API client would send events once accounts exist. The server can run the same reducer, and merging devices becomes replaying events.
-- `ProgressProvider` wraps the store with `useSyncExternalStore`. It renders empty progress on the server, hydrates on the client, and syncs across tabs through `storage` events.
+- **Anonymous visitors** keep the snapshot in localStorage under its original key and format, so no existing progress was lost when accounts arrived.
+- **Signed-in students** (`src/lib/progress/sync.ts`, wrapped by `ProgressProvider`):
+  1. Every event gets a random UUID, is applied locally at once, and goes into a persisted **outbox**.
+  2. The outbox is flushed to `POST /api/progress/events` in batches of up to 100, with backoff when offline.
+  3. The server stores events in `progress_event`. A unique `(user_id, event_id)` index makes every write idempotent, so retries after lost responses can't double-count. The server then replays **all** the user's events in canonical order (time, then id) and returns that snapshot. Local state is the server snapshot plus the events still in the outbox.
+  4. When a tab regains focus, it fetches the latest snapshot, which picks up other devices. Every device converges on the same state, because the state is a pure function of the event set.
+  5. **On sign-in**, the device's anonymous snapshot is imported once as a `snapshot-imported` event. Its id is `sha256(deviceId + canonical snapshot)`, so retries are no-ops. The merge (`mergeLesson`) never loses completion, solved exercises or best scores, and attempt counts add up. After a successful import, the anonymous copy is cleared.
+  6. **On sign-out**, queued events are flushed and this account's cached copy is removed from the device, which matters on shared computers. If a session merely expires, queued events are kept until the same account signs in again.
+- The server validates every event with strict schemas. Unknown keys are rejected, including any client-supplied `userId`. Events must refer to an existing course, lesson, exercise and step, and to a lesson the user may access. `progress-cleared` is local-only and never synced. `progress_snapshot` is a cache: delete a row and it's rebuilt from the log on the next write.
+- `ProgressProvider` follows the Better Auth session (`useSession`). Visitors' progress syncs across tabs through `storage` events.
+
+### 6a. Accounts (`src/server/auth.ts`, `src/app/(account)/*`)
+
+- **Better Auth** with email and password, backed by PostgreSQL through Drizzle. Email verification is required before sign-in. Password recovery uses single-use tokens that expire in one hour, and a reset revokes every session.
+- **No session cookie cache.** Every session check reads the session table, so sign-out and password resets take effect immediately. Tests caught a 5-minute window when the cache was on.
+- **Rate limits**, stored in the database so they survive restarts:
+
+  | Action | Limit |
+  | --- | --- |
+  | Sign-up | 5 per hour per IP |
+  | Sign-in | 5 per minute |
+  | Password-reset request | 3 per hour |
+  | Reset submission | 5 per 15 minutes |
+  | Verification resend | 3 per hour |
+
+- Client IPs come from `X-Forwarded-For`, which Caddy overwrites with the real address.
+- **Registration closes itself** in production unless SMTP email is configured. Recovery must work before anyone can register. It can also be closed explicitly with `AUTH_REGISTRATION=closed`.
+- `user.role` (`user` | `admin`) is a *permission*. Better Auth's `input: false` stops clients from setting it.
+- Configuration is validated lazily by `src/server/env.ts`, so `next build` needs no secrets. In production it refuses to start without a real secret, a `postgres://` URL and HTTPS.
+
+### 6b. Access control (`src/lib/access`, `src/content/access.ts`, `src/server/access.ts`)
+
+- `decideAccess(policy, subject, { courseId })` is a pure function. Policies are `public`, `account`, or `entitlement` (with product ids). A subject is a user id, a role and entitlements.
+- **Entitlements** record their source (`subscription`, `purchase`, `promotion`, `complimentary` or `admin-grant`), with optional start and expiry. Admins get a separate staff-preview *permission*, so they're never mistaken for customers.
+- `COURSE_ACCESS` is keyed by stable course ids, with optional lesson overrides for free previews. It is **empty**, so every course is public during the beta.
+- **Enforcement is server-side:**
+  - The lesson page authorizes before sending content. Public lessons skip the session lookup and stay statically rendered.
+  - The progress API authorizes every event and import.
+- Client components receive content-free `CourseOutline`s.
+- Where payments plug in: `EntitlementProvider` returns no entitlements today. See "Future: paid courses" in [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### 6c. Data and deployment
+
+- Drizzle schema: `src/server/db/schema.ts`. Migrations are generated with `npm run db:generate` and committed in `drizzle/`.
+- Production applies migrations with the one-shot `migrate` container. Locally, PGlite databases migrate themselves.
+- `DATABASE_URL=pglite://…` runs real PostgreSQL in WebAssembly, used for development and all tests. Production uses `postgres://` against PostgreSQL 17.
+- `GET /api/health` checks the database and feeds the Docker and Caddy health checks.
+- Deployment, backups and rollback: [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### 7. Shell and future sections
 
@@ -103,7 +153,13 @@ lib/theory     ─┘
 | Windowed neck on phones instead of shrinking it | Keeps touch targets usable with no horizontal page scroll and no forced landscape. |
 | Identify boards use `roles: false` | Colour-coded roles would give away "tap the root". |
 | Content as typed TS data, with a content-integrity test | Compile-time shape checking, and every exercise's solution is proven against its own validator. |
-| Event-sourced progress behind a repository | Local now; the backend sync path is clear without building auth. |
+| Event-sourced progress behind a repository | Visitors keep a local snapshot. Accounts sync events, which are idempotent by id, and replay them server-side. |
+| Server replays the full event log on every write | Simplest correct merge across devices; each user's log is small. Optimize with incremental apply if logs grow large. |
+| Better Auth + Drizzle + PostgreSQL | Self-hostable, sessions in our own database, no third-party auth service. |
+| PGlite for development and tests | Docker isn't required locally; the same schema and migrations run as in production. |
+| No session cookie cache | Immediate revocation beats saving one indexed lookup per request. |
+| Content is `server-only`; clients get outlines | Paid content can't leak through the JavaScript bundle. Verified: lesson text no longer appears in client chunks. |
+| Roles and entitlements are separate | Permissions (admin) and commercial access (paid) change for different reasons. |
 | Soft prerequisites | Experienced students can jump ahead; the UI recommends but doesn't lock. |
 | Assessments score first attempts but allow retries | Students always see the right answer before moving on, and the score stays honest. |
 | System font stack, no `next/font` | No build-time network dependency. Swap in a brand font in `layout.tsx` and the `--font-sans` token. |
@@ -118,7 +174,9 @@ lib/theory     ─┘
 
 - No audio yet. Hearing major vs minor is the obvious next win. Web Audio and a small sampler keyed by MIDI would cover it.
 - Exercises with the same `id` in different lessons are tracked separately by the lesson key. That is intentional, but ids must be unique within a lesson, and the content test enforces this.
-- Progress lives in a single localStorage key. Clearing site data resets it.
+- Anonymous progress lives in one localStorage key; clearing site data resets it. An account avoids this.
+- No account deletion or data export UI yet. Both are needed before a wide launch in privacy-regulated regions. Deleting a `user` row cascades to sessions and progress.
+- Content-Security-Policy is limited to `frame-ancestors`, `base-uri`, `form-action` and `object-src`. A full script policy needs a nonce for the inline theme script.
 - Drills measure accuracy, not speed, and there is no spaced repetition. A student who passes a drill once is marked done. A review queue that resurfaces drills over days, plus optional timing, would better measure automatic recall.
 - Pentatonic and scale "positions" are rectangular fret windows. That's exact for pentatonic boxes, but three-notes-per-string and CAGED scale shapes will need explicit per-string position lists.
 - Without audio, ear-based activities such as hearing major vs minor or call-and-response phrasing are described in callouts rather than interactive.

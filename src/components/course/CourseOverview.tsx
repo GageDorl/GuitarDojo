@@ -1,46 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { getCourse } from "@/content";
-import { type Course, allLessons, evaluateCompletion } from "@/lib/courses";
+import { type CourseOutline, allLessons, evaluateCompletion } from "@/lib/courses";
 import { type ProgressState, getLessonProgress, lessonStatus } from "@/lib/progress";
 import { useHydrated } from "@/hooks/useMediaQuery";
 import { useProgress } from "@/components/progress/ProgressProvider";
+import { SyncNudge } from "@/components/account/SyncNudge";
 import { ButtonLink, ProgressBar } from "@/components/ui/Button";
 import { ArrowRight, CheckIcon } from "@/components/ui/Icons";
 
 /** The lesson a student should do next: the first incomplete one, or the last visited if in progress. */
-export function resumeTarget(course: Course, progress: ProgressState) {
+export function resumeTarget(course: CourseOutline, progress: ProgressState) {
   const lessons = allLessons(course);
   const firstIncomplete = lessons.find((l) => lessonStatus(progress, course.id, l.id) !== "completed");
   return firstIncomplete ?? lessons[lessons.length - 1]!;
 }
 
-export function courseCompletion(course: Course, progress: ProgressState) {
+export function courseCompletion(course: CourseOutline, progress: ProgressState) {
   const lessons = allLessons(course);
   const done = lessons.filter((l) => lessonStatus(progress, course.id, l.id) === "completed").length;
   return { done, total: lessons.length };
 }
 
-/** Recommended prerequisite courses the student hasn't completed yet. */
-export function incompletePrerequisites(course: Course, progress: ProgressState): Course[] {
-  return course.prerequisites
-    .map((id) => getCourse(id))
-    .filter((c): c is Course => Boolean(c))
-    .filter((c) => {
-      const { done, total } = courseCompletion(c, progress);
-      return done < total;
-    });
+/** Recommended prerequisite courses (passed in as outlines) the student hasn't completed yet. */
+export function incompletePrerequisites(prerequisites: readonly CourseOutline[], progress: ProgressState): CourseOutline[] {
+  return prerequisites.filter((c) => {
+    const { done, total } = courseCompletion(c, progress);
+    return done < total;
+  });
 }
 
-export function CourseOverview({ courseId }: { courseId: string }) {
-  const course = getCourse(courseId)!;
+export function CourseOverview({ course, prerequisites }: { course: CourseOutline; prerequisites: readonly CourseOutline[] }) {
   const { progress } = useProgress();
   const hydrated = useHydrated();
   const { done, total } = courseCompletion(course, progress);
   const target = resumeTarget(course, progress);
   const started = hydrated && Object.keys(progress.lessons).some((k) => k.startsWith(`${course.id}/`));
-  const missing = hydrated ? incompletePrerequisites(course, progress) : [];
+  const missing = hydrated ? incompletePrerequisites(prerequisites, progress) : [];
   let lessonNumber = 0;
 
   return (
@@ -94,6 +90,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
         <ButtonLink href={`/learn/${course.id}/${target.id}`} className="mt-4 w-full sm:w-auto" data-testid="resume">
           {done === total && hydrated ? "Review" : started ? "Continue" : "Start"}: {target.title} <ArrowRight />
         </ButtonLink>
+        {started && <SyncNudge className="mt-4" />}
       </div>
 
       {course.modules.map((module) => (

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CourseCard } from "@/components/course/CourseCard";
-import { CURRICULUM } from "@/content";
+import { CURRICULUM, getCourseOutline } from "@/content";
 
 export const metadata: Metadata = { title: "Learn" };
 
@@ -23,9 +23,11 @@ export default function LearnPage() {
             <p className="mt-1 text-muted">{stage.description}</p>
             {available.length > 0 && (
               <div className="mt-5 grid gap-4">
-                {available.map((c) => (
-                  <CourseCard key={c.courseId} courseId={c.courseId!} />
-                ))}
+                {available.map((c) => {
+                  const course = getCourseOutline(c.courseId!)!;
+                  const prerequisites = course.prerequisites.flatMap((id) => getCourseOutline(id) ?? []);
+                  return <CourseCard key={c.courseId} course={course} prerequisites={prerequisites} />;
+                })}
               </div>
             )}
             {planned.length > 0 && (

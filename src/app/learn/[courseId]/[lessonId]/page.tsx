@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { AccessGate } from "@/components/account/AccessGate";
 import { LessonPlayer } from "@/components/lesson/LessonPlayer";
-import { allLessonParams, getCourse, getLesson } from "@/content";
+import { allLessonParams, getCourseOutline, getLesson } from "@/content";
+import { authorizeLesson } from "@/server/access";
+import { getSessionUser } from "@/server/auth";
 
 interface Params {
   courseId: string;
@@ -20,6 +24,14 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function LessonPage({ params }: { params: Promise<Params> }) {
   const { courseId, lessonId } = await params;
-  if (!getCourse(courseId) || !getLesson(courseId, lessonId)) notFound();
-  return <LessonPlayer courseId={courseId} lessonId={lessonId} />;
+  const course = getCourseOutline(courseId);
+  const lesson = getLesson(courseId, lessonId);
+  if (!course || !lesson) notFound();
+
+  // Server-side authorization BEFORE any lesson content is sent. Public lessons (all of them
+  // during the beta) never read the session, so they stay statically rendered.
+  const access = await authorizeLesson(courseId, lessonId, async () => getSessionUser(await headers()));
+  if (!access.allowed) return <AccessGate course={course} lessonId={lessonId} reason={access.reason} />;
+
+  return <LessonPlayer course={course} lesson={lesson} />;
 }

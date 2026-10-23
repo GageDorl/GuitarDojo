@@ -1,0 +1,31 @@
+# Caddy: automatic HTTPS (Let's Encrypt) for $DOMAIN, reverse proxy to the app container.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Largest legitimate request is a progress batch (< 512 KB).
+	request_body {
+		max_size 1MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+		-X-Powered-By
+	}
+
+	# Caddy sets X-Forwarded-For to the real client address and ignores any value the client
+	# sent (no trusted_proxies configured), so the app's rate limiting can rely on it.
+	reverse_proxy app:3000 {
+		health_uri /api/health
+		health_interval 30s
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

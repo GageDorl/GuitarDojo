@@ -15,36 +15,55 @@ Guitar Dojo: an interactive guitar-education site (Next.js 16 App Router, React 
 | `pentatonic-scales` | Pentatonic Scales and Fretboard Navigation | intermediate | major-minor-scales |
 | `chord-voicings` | Chord Voicings and Inversions | intermediate | fretboard-foundations |
 
-Every course is 7–8 lessons ending in a `kind: "assessment"` checkpoint. The full long-term roadmap (planned courses shown as "coming later") is `src/content/curriculum.ts`. Shop, blog, tools, auth and audio are intentionally **not built**; don't add them unless asked.
+Every course is 7–8 lessons ending in a `kind: "assessment"` checkpoint. The full long-term roadmap (planned courses shown as "coming later") is `src/content/curriculum.ts`.
+
+**Accounts exist but are optional** (free public beta): Better Auth (email + password, required verification, password reset), PostgreSQL via Drizzle, progress synced as events. Everything works signed out. Shop, blog, tools, payments and audio are intentionally **not built**; don't add them unless asked. Production deployment: Docker Compose + Caddy on a Hostinger VPS, documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). **Never deploy, touch DNS, or use production credentials without explicit permission.**
 
 ## Commands
 
 ```bash
-npm run dev          # localhost:3000
+npm run dev          # localhost:3000, local PGlite database in .data/pglite (auto-migrated), emails logged to .data/mail
 npm run check        # tsc --noEmit + vitest (run after every change)
-npm test             # vitest only
-npm run test:e2e     # Playwright: desktop, 390px and 360px phones; builds + serves on :3100
+npm test             # vitest only (DB tests use in-memory PGlite)
+npm run test:e2e     # Playwright: desktop, 390px and 360px phones; builds + serves on :3100 with a throwaway DB
 npm run build
+npm run db:generate  # after editing src/server/db/schema.ts: writes a new SQL migration to drizzle/
+npm run db:migrate   # apply migrations to DATABASE_URL (production uses the `migrate` container)
 ```
 
 - Before e2e, make sure nothing is listening on port 3100, or set `CI=1`. Otherwise Playwright **reuses a stale server** and tests old code.
 - First e2e run on a machine: `npx playwright install chromium`.
+- Docker is NOT available on the dev machine; use PGlite (`DATABASE_URL=pglite://…`). Compose files can't be validated locally.
 - There is no ESLint. `tsc` and the tests are the quality gates.
 
 ## Layering (dependencies point down only)
 
 ```
-src/app/            routes (server components; thin)
-src/components/     React UI ("use client")
-src/content/        course data (no React)
-src/lib/courses     lesson/block types, completion rules
-src/lib/progress    event-sourced progress reducer + repository
+src/app/            routes (server components; thin) and API route handlers (delegate to src/server)
+src/components/     React UI ("use client"): NEVER import @/content or @/server
+src/server/         server-only: env, db (Drizzle), auth (Better Auth), email, access checks, progress API
+src/content/        server-only course data + access rules
+src/lib/access      pure access decisions (policies, roles, entitlements)
+src/lib/courses     lesson/block types, completion rules, content-free CourseOutlines
+src/lib/progress    event-sourced reducer, replay/merge, client sync engine (ProgressSync)
 src/lib/exercises   exercise types, validators, feedback, drill generators
 src/lib/fretboard   board model, spec resolver, selection reducer, guitar positions (pentatonic windows, diagram ranges)
 src/lib/theory      music theory engine
 ```
 
 Everything under `src/lib/` and `src/content/` must stay **framework-free** (no React, no DOM), so it runs in Vitest's Node environment. Import via the barrel files (`@/lib/theory`, `@/lib/exercises` …). The path alias is `@/` → `src/`.
+
+`src/content` and `src/server` import `server-only`: importing them from a client component fails the build (Vitest aliases it to a stub). Client components get `CourseOutline`s (content-free) as props from server pages; full lesson content is sent only by the lesson page **after** `authorizeLesson`. Don't undo this: it's what keeps future paid content out of the JS bundle.
+
+## Accounts, progress sync and access (rules)
+
+- **User identity comes only from the session** (`getSessionUser(headers)` in `src/server/auth.ts`). Never accept a user id from a request body/query. Wire schemas in `src/server/progress/validation.ts` are strict objects; keep them strict.
+- **Progress writes are idempotent by event id** (`(user_id, event_id)` unique). Any new event type needs: reducer case + wire schema + content validation + replay-order sanity. Snapshot = replay of all events; `progress_snapshot` is a rebuildable cache.
+- `mergeLesson`/`mergeExerciseRecords` must never lose completion or solved state. Anonymous import ids are content hashes (retries are no-ops).
+- **Access** is decided by `decideAccess` (pure) using `COURSE_ACCESS` (empty = all public). Enforce server-side in BOTH the lesson page and the progress API. Roles (`user.role`) are permissions, entitlements are commercial; never conflate them. Payments/entitlement storage are deferred by design (see "Future: paid courses" in docs/DEPLOYMENT.md).
+- **Migrations**: never edit an applied migration; generate a new one. Keep them backward compatible with the previous app version (expand, then contract) because rollback only switches the app image.
+- **Secrets** only via environment (`src/server/env.ts` validates lazily so builds need none). Never commit `.env`; `.env.example` holds placeholders only. `UNSAFE_LOCAL_TEST_MODE=1` is for local Playwright only.
+- Session cookie cache is deliberately OFF (immediate revocation). Auth rate limits live in the `rateLimit` option of `createAuth`.
 
 ## Domain invariants (getting these wrong breaks correctness)
 
@@ -90,6 +109,10 @@ Everything under `src/lib/` and `src/content/` must stay **framework-free** (no 
 
 **Change progress shape**: bump `PROGRESS_SCHEMA_VERSION` and add a migration in `parseProgress` (it currently resets unknown versions, which wipes users' progress). New behaviour = new event type handled in `progressReducer` + a test.
 
+**Gate a course (later, when asked)**: add an entry to `COURSE_ACCESS` in `src/content/access.ts`; implement `EntitlementProvider` in `src/server/access.ts` (needs an `entitlement` table + migration). Lesson page and progress API already enforce it. Test with `setAccessRulesForTests` / `setEntitlementProviderForTests` (see `handlers.test.ts`).
+
+**Change the database**: edit `src/server/db/schema.ts` → `npm run db:generate` → commit the new `drizzle/*.sql` → tests pick it up automatically (PGlite runs all migrations).
+
 **Add a site section** (tools/shop/blog): flip `enabled` in `src/config/site.ts`, add a route folder under `src/app/`, and put its logic in a new `src/lib/<section>` module. Standalone tools should reuse `lib/theory`, `lib/fretboard` and `ResponsiveFretboard`.
 
 ## UI conventions
@@ -110,5 +133,6 @@ Everything under `src/lib/` and `src/content/` must stay **framework-free** (no 
 
 - Theory/validation/progress changes: add Vitest cases next to the code (`*.test.ts` under `src/`).
 - `src/lib/theory/reference.test.ts` holds **hand-written** reference tables (fretboard chart, all major/minor/pentatonic scales, intervals, triads, barre shapes, pentatonic positions). When adding theory, add independent reference cases there; never generate expected values with the engine under test.
-- User-facing flows: extend `e2e/lesson.spec.ts`. The `tap()` helper pages the fret window on small screens; reuse it.
+- Server/auth/progress: tests use real PostgreSQL (PGlite). `src/test/db.ts` gives a fresh migrated DB; `src/test/auth.ts` drives Better Auth through its real HTTP handler (sign-up, emailed links via the mail log, cookies). Use a distinct `ip` per test so rate limits don't interfere. `src/server/progress/sync.integration.test.ts` runs the client `ProgressSync` against the real handlers.
+- User-facing flows: extend `e2e/lesson.spec.ts` (lessons) or `e2e/accounts.spec.ts` (auth + sync; reads emails from `.data/e2e-mail`). The `tap()` helper pages the fret window on small screens; reuse it.
 - Run `npm run check` before finishing; run `CI=1 npm run test:e2e` for UI changes.

@@ -2,22 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCourse } from "@/content";
-import { type Lesson, adjacentLessons, evaluateCompletion, findLesson, lessonExercises } from "@/lib/courses";
+import {
+  type CourseOutline,
+  type Lesson,
+  type LessonOutline,
+  adjacentLessons,
+  evaluateCompletion,
+  findLesson,
+  lessonExercises,
+} from "@/lib/courses";
 import { getLessonProgress, lessonStatus } from "@/lib/progress";
 import { useHydrated } from "@/hooks/useMediaQuery";
 import { useProgress } from "@/components/progress/ProgressProvider";
+import { SyncNudge } from "@/components/account/SyncNudge";
 import { Button, ButtonLink, ProgressBar } from "@/components/ui/Button";
 import { ArrowLeft, ArrowRight, CheckIcon, ResetIcon } from "@/components/ui/Icons";
 import { BlockRenderer, type BlockContext } from "./BlockRenderer";
 
-export function LessonPlayer({ courseId, lessonId }: { courseId: string; lessonId: string }) {
+/**
+ * `lesson` is full content, sent by the server only after it authorized access. `course` is the
+ * content-free outline used for navigation.
+ */
+export function LessonPlayer({ course, lesson }: { course: CourseOutline; lesson: Lesson }) {
   const hydrated = useHydrated();
-  const course = getCourse(courseId);
-  const lesson = course ? findLesson(course, lessonId) : undefined;
-  if (!course || !lesson) return null;
   if (!hydrated) return <LessonSkeleton lesson={lesson} />;
-  return <LessonPlayerInner courseId={courseId} lesson={lesson} />;
+  return <LessonPlayerInner course={course} lesson={lesson} />;
 }
 
 function LessonSkeleton({ lesson }: { lesson: Lesson }) {
@@ -29,8 +38,8 @@ function LessonSkeleton({ lesson }: { lesson: Lesson }) {
   );
 }
 
-function LessonPlayerInner({ courseId, lesson }: { courseId: string; lesson: Lesson }) {
-  const course = getCourse(courseId)!;
+function LessonPlayerInner({ course, lesson }: { course: CourseOutline; lesson: Lesson }) {
+  const courseId = course.id;
   const { progress, dispatch } = useProgress();
   const lessonProgress = getLessonProgress(progress, courseId, lesson.id);
   const [step, setStep] = useState(() => Math.min(lessonProgress?.currentStep ?? 0, lesson.steps.length - 1));
@@ -226,7 +235,7 @@ function LessonSummary({
   lesson: Lesson;
   courseId: string;
   summary: ReturnType<typeof evaluateCompletion>;
-  nextLesson?: Lesson;
+  nextLesson?: LessonOutline;
   onRetake: () => void;
   onGoToExercise: (id: string) => void;
   unsolved: { id: string; prompt: string }[];
@@ -297,6 +306,8 @@ function LessonSummary({
             </ul>
           </div>
         )}
+
+        {summary.complete && <SyncNudge className="mx-auto mt-6 max-w-md text-left" />}
 
         <div className="mt-8 flex flex-col-reverse items-stretch justify-center gap-3 sm:flex-row sm:items-center">
           <ButtonLink href={`/learn/${courseId}`} variant="secondary">

@@ -1,0 +1,14 @@
+# OPTIONAL override for a VPS that ALREADY runs a reverse proxy on ports 80/443 (nginx, a
+# host-level Caddy, Traefik …). Instead of the bundled Caddy, the app is exposed on the
+# server's loopback interface only, and your existing proxy forwards dojo.gagedorl.com to it.
+#
+#   docker compose -f compose.yaml -f compose.existing-proxy.yaml up -d --wait
+#
+# 127.0.0.1:3000 is NOT reachable from the internet. See docs/DEPLOYMENT.md, "Option B".
+
+services:
+  caddy:
+    profiles: ["bundled-caddy"] # not started unless explicitly requested
+  app:
+    ports:
+      - "127.0.0.1:${APP_LOCAL_PORT:-3000}:3000"

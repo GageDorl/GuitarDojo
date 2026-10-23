@@ -1,0 +1,7 @@
+# Normalise line endings in the repository; shell scripts and server config must stay LF.
+* text=auto
+*.sh text eol=lf
+*.mjs text eol=lf
+Dockerfile text eol=lf
+deploy/Caddyfile text eol=lf
+*.yaml text eol=lf

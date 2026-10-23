@@ -1,0 +1,91 @@
+# Guitar Dojo production stack: Caddy (HTTPS) -> Next.js app -> PostgreSQL.
+#
+# Networking:
+#   - Only Caddy publishes ports (80/443). The app and database publish NOTHING.
+#   - `backend` is an internal network: PostgreSQL has no route to or from the internet.
+#   - The app joins `web` too, so it can reach Caddy and send email over SMTP.
+#
+# Configuration comes from ./.env (never committed; copy .env.example). See docs/DEPLOYMENT.md.
+
+name: guitar-dojo
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-guitardojo}
+      POSTGRES_USER: ${POSTGRES_USER:-guitardojo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  migrate:
+    build: { context: ., target: migrate }
+    image: guitar-dojo-migrate:${APP_VERSION:-latest}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-guitardojo}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-guitardojo}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [backend]
+
+  app:
+    build: { context: ., target: runner }
+    image: guitar-dojo-app:${APP_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-guitardojo}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-guitardojo}
+      BETTER_AUTH_URL: https://${DOMAIN:?Set DOMAIN in .env}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      AUTH_REGISTRATION: ${AUTH_REGISTRATION:-open}
+      EMAIL_TRANSPORT: smtp
+      EMAIL_FROM: ${EMAIL_FROM:?Set EMAIL_FROM in .env}
+      SMTP_HOST: ${SMTP_HOST:?Set SMTP_HOST in .env}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+    expose: ["3000"]
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [backend, web]
+    read_only: true
+    tmpfs: [/tmp, /app/.next/cache]
+    security_opt: ["no-new-privileges:true"]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app: { condition: service_healthy }
+    networks: [web]
+
+networks:
+  backend:
+    internal: true
+  web: {}
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

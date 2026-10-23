@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { evaluateCompletion, type Lesson } from "@/lib/courses";
 import {
+  type IdentifiedEvent,
   LocalProgressRepository,
+  mergeExerciseRecords,
+  replay,
   type ProgressEvent,
   STORAGE_KEY,
   emptyProgress,
@@ -16,6 +19,55 @@ const base = { courseId: "c", lessonId: "l", at };
 function run(events: ProgressEvent[]) {
   return events.reduce(progressReducer, emptyProgress());
 }
+
+describe("event replay and merging", () => {
+  const e = (id: string, minute: number, correct: boolean): IdentifiedEvent => ({
+    id,
+    type: "exercise-attempted",
+    courseId: "c",
+    lessonId: "l",
+    exerciseId: "x",
+    correct,
+    at: `2026-01-01T00:${String(minute).padStart(2, "0")}:00.000Z`,
+  });
+
+  it("produces the same state whatever order events arrive in", () => {
+    const events = [e("a", 1, false), e("b", 2, true), e("c", 3, true), { id: "d", type: "lesson-completed", courseId: "c", lessonId: "l", at: "2026-01-01T00:04:00.000Z" } as IdentifiedEvent];
+    const expected = replay(events);
+    for (const order of [[3, 2, 1, 0], [1, 3, 0, 2], [2, 0, 3, 1]]) {
+      expect(replay(order.map((i) => events[i]!))).toEqual(expected);
+    }
+    expect(getLessonProgress(expected, "c", "l")!.exercises.x).toMatchObject({ attempts: 3, firstAttemptCorrect: false, firstAttemptAt: "2026-01-01T00:01:00.000Z" });
+  });
+
+  it("merges imported lessons without losing completion, solved exercises or best scores", () => {
+    const existing = replay([e("a", 5, false)]);
+    const merged = progressReducer(existing, {
+      type: "snapshot-imported",
+      at: "2026-01-02T00:00:00.000Z",
+      lessons: {
+        "c/l": {
+          status: "completed",
+          currentStep: 3,
+          startedAt: "2025-12-31T00:00:00.000Z",
+          completedAt: "2025-12-31T01:00:00.000Z",
+          bestScore: 0.8,
+          exercises: { x: { attempts: 2, correct: 1, incorrect: 1, firstAttemptCorrect: true, firstAttemptAt: "2025-12-31T00:10:00.000Z", solved: true, lastAttemptAt: "2025-12-31T00:20:00.000Z" } },
+        },
+      },
+    });
+    const lesson = getLessonProgress(merged, "c", "l")!;
+    expect(lesson).toMatchObject({ status: "completed", startedAt: "2025-12-31T00:00:00.000Z", bestScore: 0.8, currentStep: 0 });
+    // The imported first attempt happened earlier, so its result wins; counts add up.
+    expect(lesson.exercises.x).toMatchObject({ attempts: 3, correct: 1, incorrect: 2, firstAttemptCorrect: true, solved: true });
+  });
+
+  it("treats records without firstAttemptAt (pre-account data) conservatively", () => {
+    const a = { attempts: 1, correct: 0, incorrect: 1, firstAttemptCorrect: false, solved: false, lastAttemptAt: at };
+    const b = { attempts: 1, correct: 1, incorrect: 0, firstAttemptCorrect: true, solved: true, lastAttemptAt: at };
+    expect(mergeExerciseRecords(a, b)).toMatchObject({ firstAttemptCorrect: false, solved: true, attempts: 2 });
+  });
+});
 
 describe("progress reducer", () => {
   it("tracks attempts, first-attempt correctness and solved state", () => {

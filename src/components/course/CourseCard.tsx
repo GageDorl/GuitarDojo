@@ -1,21 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { getCourse } from "@/content";
-import { allLessons } from "@/lib/courses";
+import { type CourseOutline, allLessons } from "@/lib/courses";
 import { useHydrated } from "@/hooks/useMediaQuery";
 import { useProgress } from "@/components/progress/ProgressProvider";
 import { ProgressBar } from "@/components/ui/Button";
 import { ArrowRight, CheckIcon } from "@/components/ui/Icons";
 import { courseCompletion, incompletePrerequisites } from "./CourseOverview";
 
-export function CourseCard({ courseId }: { courseId: string }) {
-  const course = getCourse(courseId)!;
+export function CourseCard({ course, prerequisites }: { course: CourseOutline; prerequisites: readonly CourseOutline[] }) {
   const { progress } = useProgress();
   const hydrated = useHydrated();
   const { done, total } = courseCompletion(course, progress);
   const minutes = allLessons(course).reduce((sum, l) => sum + l.estimatedMinutes, 0);
-  const missing = hydrated ? incompletePrerequisites(course, progress) : [];
+  const missing = hydrated ? incompletePrerequisites(prerequisites, progress) : [];
   const complete = hydrated && done === total;
 
   return (

@@ -1,7 +1,6 @@
 "use client";
 
-import { COURSES, getCourse } from "@/content";
-import { findLesson } from "@/lib/courses";
+import { type CourseOutline, findLesson } from "@/lib/courses";
 import { useHydrated } from "@/hooks/useMediaQuery";
 import { useProgress } from "@/components/progress/ProgressProvider";
 import { ButtonLink } from "@/components/ui/Button";
@@ -9,13 +8,13 @@ import { ArrowRight } from "@/components/ui/Icons";
 import { resumeTarget } from "@/components/course/CourseOverview";
 
 /** Primary call to action: start, or resume where the student left off. */
-export function ContinueLearning() {
+export function ContinueLearning({ courses }: { courses: readonly CourseOutline[] }) {
   const hydrated = useHydrated();
   const { progress } = useProgress();
-  const course = COURSES[0]!;
+  const course = courses[0]!;
 
   const last = hydrated ? progress.lastVisited : undefined;
-  const lastCourse = last ? getCourse(last.courseId) : undefined;
+  const lastCourse = last ? courses.find((c) => c.id === last.courseId) : undefined;
   const lastLesson = lastCourse && last ? findLesson(lastCourse, last.lessonId) : undefined;
   const lastDone = lastLesson && progress.lessons[`${last!.courseId}/${lastLesson.id}`]?.status === "completed";
   const target = lastLesson && !lastDone ? lastLesson : resumeTarget(course, progress);

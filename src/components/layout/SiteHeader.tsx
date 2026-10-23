@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NAV_ITEMS, SITE } from "@/config/site";
+import { AccountLink } from "./AccountLink";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Logo() {
@@ -37,6 +38,7 @@ export function SiteHeader() {
             </Link>
           ))}
           <ThemeToggle />
+          <AccountLink />
         </nav>
       </div>
     </header>

@@ -2,6 +2,7 @@ import { ContinueLearning } from "@/components/home/ContinueLearning";
 import { HeroBoard } from "@/components/home/HeroBoard";
 import { ButtonLink } from "@/components/ui/Button";
 import { SITE } from "@/config/site";
+import { getCourseOutlines } from "@/content";
 
 const FEATURES = [
   {
@@ -28,11 +29,11 @@ export default function HomePage() {
             {SITE.tagline}
           </h1>
           <p className="mt-4 max-w-xl text-lg text-muted">
-            Understand what you play. Start with how major and minor chords are built, and see every note on the neck as you
-            learn it.
+            Understand what you play. From your first notes to chords, scales and the whole neck, every lesson is free, and
+            you don&apos;t need an account to start.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <ContinueLearning />
+            <ContinueLearning courses={getCourseOutlines()} />
             <ButtonLink href="/learn" variant="secondary" size="lg">
               Browse courses
             </ButtonLink>
