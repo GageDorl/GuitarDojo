@@ -112,7 +112,7 @@ lib/theory     ─┘
   | Reset submission | 5 per 15 minutes |
   | Verification resend | 3 per hour |
 
-- Client IPs come from `X-Forwarded-For`, which Caddy overwrites with the real address.
+- Client IPs come from `X-Forwarded-For`, which the reverse proxy overwrites with the real address (Caddy, or the host nginx in production).
 - **Registration closes itself** in production unless SMTP email is configured. Recovery must work before anyone can register. It can also be closed explicitly with `AUTH_REGISTRATION=closed`.
 - `user.role` (`user` | `admin`) is a *permission*. Better Auth's `input: false` stops clients from setting it.
 - Configuration is validated lazily by `src/server/env.ts`, so `next build` needs no secrets. In production it refuses to start without a real secret, a `postgres://` URL and HTTPS.

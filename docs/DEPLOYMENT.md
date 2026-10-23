@@ -15,6 +15,51 @@ Commands below assume Ubuntu/Debian (Hostinger's usual VPS images), a sudo user 
 
 ---
 
+## Current production deployment (live since 2026-10-23)
+
+The general guide below covers several options. This section records what is **actually running**, so read it before changing anything that affects production.
+
+| What | Value |
+| --- | --- |
+| URL | https://dojo.gagedorl.com (DNS: A `dojo` → `69.62.65.213`, no AAAA) |
+| Server | Hostinger KVM VPS, Ubuntu 24.04, everything runs as `root` |
+| Checkout | `/root/GuitarDojo` (not `/opt/guitar-dojo`), tracking `origin/main` on GitHub |
+| Stack | Docker Compose, **Option B**: `.deploy.conf` sets `COMPOSE_FILES="compose.yaml compose.existing-proxy.yaml"`. Containers: `db` (Postgres 17, volume `guitar-dojo_pgdata`), `migrate`, `app`. The bundled Caddy is **not** used. |
+| App port | `127.0.0.1:3003` (`APP_LOCAL_PORT=3003` in `.env`). Ports 3000–3002 and 4500 belong to other apps. |
+| Reverse proxy | Host **nginx** (shared with other sites): `/etc/nginx/sites-available/dojo.gagedorl.com`, proxying to `127.0.0.1:3003` and *replacing* `X-Forwarded-For` with `$remote_addr`. |
+| TLS | Let's Encrypt via `certbot --nginx`; renewal by the system `certbot.timer`. |
+| Email | Hostinger SMTP (`smtp.hostinger.com:465`, `SMTP_SECURE=true`) as `admin@gagedorl.com`. SPF, DKIM and DMARC are already set on `gagedorl.com`. Registration is open. |
+| Backups | **Not configured yet** (no age key, no rclone remote). Until they are, `scripts/deploy.sh` keeps a local, unencrypted pre-deploy dump in `backups/` instead of an off-site one. |
+
+**Shared server.** The same VPS runs other unrelated sites and apps: nginx sites for `gagedorl.com`, `climbersden`, `heartsync` and `chewcheck.tech`, plus several pm2 processes. Guitar Dojo does **not** use pm2. Docker's `restart: unless-stopped` keeps it running across reboots. Never stop, restart or edit the other sites or pm2 apps. Don't install host-level services (for example a system PostgreSQL); dependencies run in Docker.
+
+### Shipping changes (the normal workflow)
+
+Development happens elsewhere and is pushed to `main` on GitHub. **Deploying is done on the server, only when the owner asks for it**:
+
+```bash
+cd /root/GuitarDojo
+git pull --ff-only
+scripts/deploy.sh      # pre-deploy dump → build image for HEAD → migrate → start app → health check
+curl -fsS https://dojo.gagedorl.com/api/health
+```
+
+What that means for whoever writes the code:
+
+- **Only committed code on `main` ships.** `deploy.sh` builds the checked-out commit and refuses to run with uncommitted changes. Don't make edits directly on the server; `git pull --ff-only` fails if the server's checkout has diverged.
+- **New courses and lessons are content-only.** They're compiled into the app image, so a pull + `deploy.sh` is all they need. There's no database change, no restart of anything else, and no nginx change.
+- **Run the quality gates before pushing** (`npm run check`, and the e2e suite for UI changes). The server builds with `npm ci` + `next build` inside Docker (Node 22). A type error fails the build there, and the old version keeps running.
+- **Database changes** need a committed migration in `drizzle/` (`npm run db:generate`). The `migrate` container applies it automatically on deploy. It must stay backward compatible with the previous app version (expand, then contract), because rollback only switches the app image.
+- **Never rename published course, lesson or exercise ids.** Live users' progress is keyed on them.
+- **New environment variables** must be added to `.env.example`, to the `app` service's `environment:` in `compose.yaml` (the app only sees variables listed there), and to `src/server/env.ts`. The owner then has to add the real value to the server's `.env` before deploying. Say so in the hand-off.
+- Anything needing a new port, domain or host-level change is a deployment change. Describe it rather than assume it.
+
+**Rollback:** `scripts/rollback.sh` lists recent deploys; `scripts/rollback.sh <version>` switches back in seconds. A local pre-deploy dump (while off-site backups are unset) is restored with `docker compose -f compose.yaml -f compose.existing-proxy.yaml exec -T db pg_restore -U guitardojo -d guitardojo --clean --if-exists --no-owner --no-privileges --single-transaction < backups/<file>.dump`, with the app stopped first.
+
+**Operating commands** in section 7 need both compose files on this server: `docker compose -f compose.yaml -f compose.existing-proxy.yaml ps` (or `logs -f app`, and so on). The scripts in `scripts/` pick them up from `.deploy.conf` automatically.
+
+---
+
 ## 0. Decide three things first
 
 1. **Who sends email?** Email verification and password reset need working SMTP; sign-up stays closed until it's configured. Use a transactional provider (Postmark, Resend, Brevo, Amazon SES) or Hostinger Email if you already have a mailbox on `gagedorl.com` (`smtp.hostinger.com`, port 465, `SMTP_SECURE=true`).

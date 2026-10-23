@@ -17,7 +17,7 @@ Guitar Dojo: an interactive guitar-education site (Next.js 16 App Router, React 
 
 Every course is 7–8 lessons ending in a `kind: "assessment"` checkpoint. The full long-term roadmap (planned courses shown as "coming later") is `src/content/curriculum.ts`.
 
-**Accounts exist but are optional** (free public beta): Better Auth (email + password, required verification, password reset), PostgreSQL via Drizzle, progress synced as events. Everything works signed out. Shop, blog, tools, payments and audio are intentionally **not built**; don't add them unless asked. Production deployment: Docker Compose + Caddy on a Hostinger VPS, documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). **Never deploy, touch DNS, or use production credentials without explicit permission.**
+**Accounts exist but are optional** (free public beta): Better Auth (email + password, required verification, password reset), PostgreSQL via Drizzle, progress synced as events. Everything works signed out. Shop, blog, tools, payments and audio are intentionally **not built**; don't add them unless asked. Production deployment: Docker Compose on a shared Hostinger VPS behind the host's nginx, live at https://dojo.gagedorl.com. See "Current production deployment" in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the actual setup and how changes ship (push to `main`; the owner pulls and runs `scripts/deploy.sh` on the server). **Never deploy, touch DNS, or use production credentials without explicit permission.**
 
 ## Commands
 
