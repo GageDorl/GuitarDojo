@@ -22,6 +22,17 @@ export function courseCompletion(course: Course, progress: ProgressState) {
   return { done, total: lessons.length };
 }
 
+/** Recommended prerequisite courses the student hasn't completed yet. */
+export function incompletePrerequisites(course: Course, progress: ProgressState): Course[] {
+  return course.prerequisites
+    .map((id) => getCourse(id))
+    .filter((c): c is Course => Boolean(c))
+    .filter((c) => {
+      const { done, total } = courseCompletion(c, progress);
+      return done < total;
+    });
+}
+
 export function CourseOverview({ courseId }: { courseId: string }) {
   const course = getCourse(courseId)!;
   const { progress } = useProgress();
@@ -29,6 +40,7 @@ export function CourseOverview({ courseId }: { courseId: string }) {
   const { done, total } = courseCompletion(course, progress);
   const target = resumeTarget(course, progress);
   const started = hydrated && Object.keys(progress.lessons).some((k) => k.startsWith(`${course.id}/`));
+  const missing = hydrated ? incompletePrerequisites(course, progress) : [];
   let lessonNumber = 0;
 
   return (
@@ -39,6 +51,37 @@ export function CourseOverview({ courseId }: { courseId: string }) {
       <p className="mt-4 text-sm font-semibold tracking-wide text-accent uppercase">{course.level} course</p>
       <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">{course.title}</h1>
       <p className="mt-3 text-lg text-muted">{course.description}</p>
+
+      {course.outcomes.length > 0 && (
+        <div className="mt-5">
+          <p className="text-sm font-semibold">By the end you&apos;ll be able to:</p>
+          <ul className="mt-2 space-y-1.5 text-[0.95rem]">
+            {course.outcomes.map((o) => (
+              <li key={o} className="flex gap-2">
+                <span className="mt-0.5 text-correct">
+                  <CheckIcon size={16} />
+                </span>
+                {o}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {missing.length > 0 && (
+        <p className="mt-5 rounded-xl border border-border bg-surface-2 p-3 text-sm" data-testid="course-prerequisites">
+          Recommended first:{" "}
+          {missing.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 && ", "}
+              <Link className="font-semibold text-accent underline-offset-2 hover:underline" href={`/learn/${c.id}`}>
+                {c.title}
+              </Link>
+            </span>
+          ))}
+          . Already comfortable with it? Go ahead and start here.
+        </p>
+      )}
 
       <div className="mt-6 rounded-2xl border border-border bg-surface p-4 sm:p-5">
         <div className="flex items-center justify-between text-sm">

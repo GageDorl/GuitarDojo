@@ -4,7 +4,18 @@ Guidance for agents working in this repo. Read this first; [docs/ARCHITECTURE.md
 
 ## What this is
 
-Guitar Dojo: an interactive guitar-education site (Next.js 16 App Router, React 19, TypeScript 5.9 strict, Tailwind 4). The current scope is the **course platform only**: one course (`fretboard-foundations`) with one module, "Understanding Major and Minor Triads" (7 lessons, the last is a scored checkpoint). Shop, blog, tools, auth and audio are intentionally **not built**; don't add them unless asked.
+Guitar Dojo: an interactive guitar-education site (Next.js 16 App Router, React 19, TypeScript 5.9 strict, Tailwind 4). The current scope is the **course platform only**. Six courses are live, in pathway order (`src/content/index.ts`):
+
+| Course id | Title | Stage | Recommended first |
+| --- | --- | --- | --- |
+| `notes-and-fretboard` | Notes and the Fretboard | foundation | — |
+| `intervals` | Understanding Intervals | foundation | notes-and-fretboard |
+| `fretboard-foundations` | Major and Minor Triads (the original course; id kept for saved progress) | intermediate | intervals |
+| `major-minor-scales` | Major and Minor Scales | intermediate | intervals |
+| `pentatonic-scales` | Pentatonic Scales and Fretboard Navigation | intermediate | major-minor-scales |
+| `chord-voicings` | Chord Voicings and Inversions | intermediate | fretboard-foundations |
+
+Every course is 7–8 lessons ending in a `kind: "assessment"` checkpoint. The full long-term roadmap (planned courses shown as "coming later") is `src/content/curriculum.ts`. Shop, blog, tools, auth and audio are intentionally **not built**; don't add them unless asked.
 
 ## Commands
 
@@ -28,8 +39,8 @@ src/components/     React UI ("use client")
 src/content/        course data (no React)
 src/lib/courses     lesson/block types, completion rules
 src/lib/progress    event-sourced progress reducer + repository
-src/lib/exercises   exercise types, validators, feedback
-src/lib/fretboard   board model, spec resolver, selection reducer
+src/lib/exercises   exercise types, validators, feedback, drill generators
+src/lib/fretboard   board model, spec resolver, selection reducer, guitar positions (pentatonic windows, diagram ranges)
 src/lib/theory      music theory engine
 ```
 
@@ -55,9 +66,15 @@ Everything under `src/lib/` and `src/content/` must stay **framework-free** (no 
 ## Recipes
 
 **Add a lesson**
-1. New file in `src/content/courses/triads/lessons/` exporting a `Lesson`. Use helpers from `src/content/helpers.ts` (`step`, `text`, `callout`, `board`, `choice`, `exercise`, `shape`).
-2. Register it in `src/content/courses/triads/index.ts`.
-3. `npm test`: `src/content/content.test.ts` checks every fretboard exercise's `solution` passes its own rule, solutions are inside the board range (and on markers when `selectableOnlyMarkers`), `initialSelection` isn't already correct, ids are unique per lesson, prerequisites exist, and every diagram resolves. **Do not weaken this test to make content pass; fix the content.**
+1. New file in `src/content/courses/<course>/lessons/` exporting a `Lesson`. Use helpers from `src/content/helpers.ts`: `step`, `text`, `callout`, `board`, `choice`, `exercise`, `drill`, `shape`, `buildUp` (demo frames), layout presets `NECK`/`CHORD`/`BUILD`, and **engine-computed answers**: `notePositions`, `scaleAlongString`, `scaleInWindow`, `pentatonicWindow`, `voicingBoard`, `generatedVoicings`, `moved` (barre shapes). Prefer these over hand-typed fret lists.
+2. Register it in that course's `index.ts` (lesson `prerequisites` are lesson ids within the same course and must come earlier).
+3. `npm test`: `src/content/content.test.ts` checks every fretboard exercise's `solution` passes its own rule, solutions are inside the board range/active strings (and on markers when `selectableOnlyMarkers`), `initialSelection` isn't already correct, ids are unique per lesson, prerequisites exist and come earlier, every diagram resolves, and **samples 60 generated questions from every drill** and validates each one. **Do not weaken this test to make content pass; fix the content.**
+
+**Add a course**: create `src/content/courses/<dir>/index.ts` exporting a `Course` (with `stage`, `prerequisites` as course ids, `outcomes`), add it to `COURSES` in `src/content/index.ts` *after* its prerequisites, and set its `courseId` on the matching entry in `src/content/curriculum.ts`. Tests enforce: unique ids, prerequisites earlier in `COURSES`, every course in the roadmap, 6–10 lessons, last lesson is an assessment. **Never rename a published course or lesson id** (they're progress keys).
+
+**Teaching pattern** used across courses: labelled demo/explorer → unlabelled recognition → construction → a `drill` in random keys/positions → checkpoint (`min-score` 0.75, first attempts only). Drills inside checkpoints count as correct only if passed on the first run.
+
+**Add a drill generator**: extend `DrillGenerator` in `src/lib/exercises/types.ts`, implement it in `DRILL_GENERATORS` (`drills.ts`) as a pure function of the RNG that returns a normal multiple-choice/fretboard exercise with an engine-computed `solution`/`answer`, and add a case to `drills.test.ts` that checks generated answers against a **hand-written reference** (not the engine). Use `attempt()` to retry parameter combos that have no playable answer.
 
 **Content rules of thumb**
 - Every fretboard exercise needs a `solution`. Exercise ids must be unique within a lesson (they're progress keys; renaming one orphans saved progress).
@@ -92,5 +109,6 @@ Everything under `src/lib/` and `src/content/` must stay **framework-free** (no 
 ## Testing expectations
 
 - Theory/validation/progress changes: add Vitest cases next to the code (`*.test.ts` under `src/`).
+- `src/lib/theory/reference.test.ts` holds **hand-written** reference tables (fretboard chart, all major/minor/pentatonic scales, intervals, triads, barre shapes, pentatonic positions). When adding theory, add independent reference cases there; never generate expected values with the engine under test.
 - User-facing flows: extend `e2e/lesson.spec.ts`. The `tap()` helper pages the fret window on small screens; reuse it.
 - Run `npm run check` before finishing; run `CI=1 npm run test:e2e` for UI changes.

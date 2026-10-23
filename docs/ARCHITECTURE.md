@@ -20,7 +20,10 @@ lib/theory     ─┘
 - **Spelling first.** There are three levels of identity. A `PitchClass` is 0–11. A `Note` is a letter plus an accidental, so C♯ and D♭ are distinct. A `Pitch` is a note in an octave, with MIDI 60 = C4. Intervals have a *number* taken from letters and a *quality* taken from semitones. That is why `transpose(A, "M3")` gives C♯, and why A→D♭ is identified as a diminished fourth.
 - Chord qualities (`CHORD_QUALITIES`) and scale types (`SCALE_TYPES`) are data tables. Seventh chords, modes and other scales are new table entries.
 - `tuning.ts` maps `{ string, fret }` to pitches. Strings use guitarist numbering, so 1 is high E. Alternate tunings are data (`TUNINGS`).
-- `voicings.ts` parses shapes such as `"x32010"`, reports inversions, and enumerates playable voicings under span and finger constraints. A small library of common voicings is checked against the chord engine in tests.
+- `voicings.ts` parses shapes such as `"x32010"`, reports inversions, and enumerates playable voicings under span and finger constraints. A small library of common voicings is checked against the chord engine in tests. `shiftVoicing` moves a shape up the neck, turning open strings into a barre. It was added for the barre-chord lessons.
+- `scales.ts` adds `relativeMinor` and `relativeMajor`. They are needed by the relative-key lessons and the pentatonic generators.
+- `src/lib/theory/reference.test.ts` checks the engine against **hand-written reference tables**. These cover the standard-tuning note chart, all 15 major scales, natural minor, both pentatonics, relative keys, interval spellings, triads, barre shapes and the five A minor pentatonic positions. These tests catch errors that self-consistency checks cannot.
+- Guitar-navigation helpers that depend on the instrument and not on theory live in `src/lib/fretboard/positions.ts`. They are the five pentatonic position windows, the fret of a note on the low string, and `rangeForVoicing` for framing diagrams.
 
 ### 2. Fretboard model (`src/lib/fretboard`)
 
@@ -57,11 +60,23 @@ lib/theory     ─┘
   - "C is a minor third above A. A major needs a major third: C♯."
   - "You found the right note name, but this C is C3: an octave lower than the C4 this exercise asks for."
   - "These notes form C major, but the lowest note is E (the third) … put the root (C) in the bass."
+- **Drills** (`kind: "drill"`, `src/lib/exercises/drills.ts`) handle recall and transfer. A drill holds a `DrillGenerator`, which is data describing a family of questions such as "find a random natural note on one of these strings" or "build a random triad in a random inversion on a random string group". Each round draws fresh parameters from an RNG and produces an ordinary multiple-choice or fretboard exercise. Every solution or answer is computed by the theory engine. `DrillView` renders rounds with the existing views, counts **first tries only**, auto-advances on a correct answer, and records one attempt per run: correct when the pass score is met. Generators are pure functions of the RNG, so tests seed them and validate hundreds of generated questions per drill.
+
+  | Generator | Question |
+  | --- | --- |
+  | `note-location` / `note-naming` | Find a note on a string / name a highlighted note |
+  | `interval-construction` / `interval-recognition` | Find an interval above a root / name an interval, optionally shape-only |
+  | `chord-construction` / `chord-recognition` / `inversion-recognition` | Build or name triads, inversions and string groups, using `findVoicings` |
+  | `scale-roots` / `scale-identification` | Tap every root in a pentatonic position / name the key of a position |
+  | `scale-on-string` / `scale-degree` | Play a scale along one string / name a scale degree, in random keys |
+
 - **Adding a strategy** means adding a rule type, a validator and a test. The UI needs no change. **Adding an exercise kind** means a new type and a component registered in `ExerciseView.tsx`.
 
 ### 5. Lessons and courses (`src/lib/courses`, `src/content`)
 
-- Course → Module → Lesson → Step → Block. Block types: `text` (paragraphs, lists, bold and italic), `callout`, `fretboard`, `demo`, `chromatic`, `triad-stack`, `compare`, `interval-explorer` and `exercise`. `BlockRenderer.tsx` maps each type to a component.
+- Course → Module → Lesson → Step → Block. Block types: `text` (paragraphs, lists, bold and italic), `callout`, `fretboard`, `demo`, `chromatic`, `triad-stack`, `compare`, `interval-explorer`, `note-explorer` (tap a note to see its name, unisons and octaves) and `exercise`.
+- **Curriculum.** `src/content/index.ts` lists the courses in pathway order. `src/content/curriculum.ts` is the long-term roadmap by stage: entries with a `courseId` are live, and the rest show as "coming later" on `/learn`. Each `Course` declares a `stage`, its `outcomes`, and **course-level prerequisites** (course ids). These are soft: the catalog and course page recommend them, and nothing is ever locked. Lesson prerequisites stay within a course.
+- **Teaching pattern.** Each course moves from **labelled demonstrations** to **unlabelled recognition**, then **construction**, then **drills in random keys and positions**, ending in a scored checkpoint. Content helpers (`src/content/helpers.ts`) compute solutions from the engine. Examples are `scaleInWindow`, `notePositions`, `generatedVoicings`, `moved` for barre shapes, and `pentatonicWindow`. They keep hand-typed answers to a minimum. `BlockRenderer.tsx` maps each type to a component.
 - Each lesson declares its objectives, prerequisites (soft: recommended, not locked), estimated time and a **completion rule**. `all-exercises-solved` is used for lessons. `min-score` is used for assessments and scores first attempts only.
 - Content is TypeScript modules today, so it is type-checked and versioned with the code. Every shape is plain data, so moving content to a CMS or database later only replaces `src/content/index.ts`.
 
@@ -95,9 +110,15 @@ lib/theory     ─┘
 | No ESLint yet | `tsc --strict` and tests gate quality. Add `eslint-config-next` when the team grows. |
 | Design tokens in `globals.css` | Rebranding means editing two token blocks, light and dark. Components use semantic Tailwind colours (`bg-surface`, `text-muted`, `bg-root` …). |
 
+| Drills as data generators, not bespoke components | One component runs every kind of recall practice. Generated questions reuse the existing validators and feedback, and seeded tests validate them in bulk. |
+| Pentatonic positions numbered from the minor root's box | It's a common teaching convention and makes the windows a fixed offset table. The same shapes serve the relative major. |
+| Original triads course keeps id `fretboard-foundations` | Course ids are progress keys. Only its title and metadata changed. |
+
 ## Known gaps and next steps
 
 - No audio yet. Hearing major vs minor is the obvious next win. Web Audio and a small sampler keyed by MIDI would cover it.
 - Exercises with the same `id` in different lessons are tracked separately by the lesson key. That is intentional, but ids must be unique within a lesson, and the content test enforces this.
 - Progress lives in a single localStorage key. Clearing site data resets it.
-- The voicing generator is not yet used in lessons. It is ready for a "show me other voicings" feature and for chord-explorer tooling.
+- Drills measure accuracy, not speed, and there is no spaced repetition. A student who passes a drill once is marked done. A review queue that resurfaces drills over days, plus optional timing, would better measure automatic recall.
+- Pentatonic and scale "positions" are rectangular fret windows. That's exact for pentatonic boxes, but three-notes-per-string and CAGED scale shapes will need explicit per-string position lists.
+- Without audio, ear-based activities such as hearing major vs minor or call-and-response phrasing are described in callouts rather than interactive.

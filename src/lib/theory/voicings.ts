@@ -31,6 +31,14 @@ export function voicingShape(v: Voicing): string {
   return tokens.join(big ? "." : "");
 }
 
+/**
+ * Move a shape up the neck. Open strings become fretted (the barre), so the open E shape moved
+ * up one fret is the F barre chord: shiftVoicing("022100", 1) → "133211".
+ */
+export function shiftVoicing(v: Voicing, frets: number): Voicing {
+  return { frets: v.frets.map((f) => (f === null ? null : f + frets)) };
+}
+
 /** Positions sounded by a voicing, using guitarist string numbering. */
 export function voicingPositions(v: Voicing): FretPosition[] {
   const count = v.frets.length;

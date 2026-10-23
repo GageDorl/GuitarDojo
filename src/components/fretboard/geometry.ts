@@ -62,8 +62,8 @@ export interface FretboardGeometry {
   fretLabel(fret: number): Point;
   /** String-name label position. */
   stringLabel(string: number): Point;
-  /** Rectangle covering a span of frets across all strings. */
-  span(from: number, to: number): { x: number; y: number; width: number; height: number };
+  /** Rectangle covering a span of frets across all strings, or null when it's outside the view. */
+  span(from: number, to: number): { x: number; y: number; width: number; height: number } | null;
 }
 
 export function createGeometry(presentation: Presentation, range: FretRange, stringCount = 6): FretboardGeometry {
@@ -128,6 +128,8 @@ export function createGeometry(presentation: Presentation, range: FretRange, str
     span: (from, to) => {
       const a = Math.max(from, firstFret);
       const b = Math.min(to, lastFret);
+      // Region entirely outside the visible window (e.g. a paged neck on a phone).
+      if (b < a && !(from === 0 && showsOpen)) return null;
       const start = from === 0 && showsOpen ? alongStart : boardAlongStart + (a - firstFret) * m.fret;
       const end = boardAlongStart + (b - firstFret + 1) * m.fret;
       return rect(start, boardAcrossStart, end - start, boardAcrossSize);

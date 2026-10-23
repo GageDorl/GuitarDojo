@@ -1,6 +1,7 @@
 "use client";
 
 import type { Exercise } from "@/lib/exercises";
+import { DrillView } from "./DrillView";
 import type { ExerciseViewProps } from "./ExerciseCard";
 import { FretboardExerciseView } from "./FretboardExerciseView";
 import { MultipleChoiceView } from "./MultipleChoiceView";
@@ -13,5 +14,7 @@ export function ExerciseView(props: ExerciseViewProps<Exercise>) {
       return <MultipleChoiceView {...props} exercise={exercise} />;
     case "fretboard":
       return <FretboardExerciseView {...props} exercise={exercise} />;
+    case "drill":
+      return <DrillView {...props} exercise={exercise} />;
   }
 }

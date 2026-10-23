@@ -74,6 +74,16 @@ export function scaleDegreeForPitchClass(scale: Scale, pc: PitchClass): ScaleDeg
   return scale.degrees.find((d) => pitchClass(d.note) === mod(pc, 12));
 }
 
+/** Relative minor of a major key: its sixth degree (C major → A minor). */
+export function relativeMinor(majorTonic: Note | string): Note {
+  return transpose(toNote(majorTonic), "M6");
+}
+
+/** Relative major of a minor key: a minor third up (A minor → C major). */
+export function relativeMajor(minorTonic: Note | string): Note {
+  return transpose(toNote(minorTonic), "m3");
+}
+
 /** Semitone steps between consecutive degrees, wrapping to the octave (major: 2 2 1 2 2 2 1). */
 export function stepPattern(scale: Scale): number[] {
   const pcs = scale.degrees.map((d) => pitchClass(d.note));

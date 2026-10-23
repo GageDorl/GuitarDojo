@@ -67,6 +67,20 @@ export interface IntervalExplorerBlock {
   readonly caption?: string;
 }
 
+/**
+ * Free play: tap any position to see its note name, every other place the same pitch occurs
+ * (unisons) and, optionally, its octaves. Not graded.
+ */
+export interface NoteExplorerBlock {
+  readonly type: "note-explorer";
+  readonly range: FretRange;
+  /** Restrict tapping to these strings. */
+  readonly strings?: readonly number[];
+  /** Also highlight the same note name in other octaves. Default true. */
+  readonly showOctaves?: boolean;
+  readonly caption?: string;
+}
+
 export interface ExerciseBlock {
   readonly type: "exercise";
   readonly exercise: Exercise;
@@ -81,6 +95,7 @@ export type LessonBlock =
   | TriadStackBlock
   | CompareBlock
   | IntervalExplorerBlock
+  | NoteExplorerBlock
   | ExerciseBlock;
 
 export interface LessonStep {
@@ -115,10 +130,22 @@ export interface CourseModule {
   readonly lessons: readonly Lesson[];
 }
 
+/** Stages of the long-term curriculum (see src/content/curriculum.ts). */
+export type CurriculumStage = "foundation" | "intermediate" | "fluency" | "advanced";
+
 export interface Course {
+  /** Stable id: used in URLs and progress keys. Never rename a published course id. */
   readonly id: string;
   readonly title: string;
   readonly description: string;
   readonly level: "beginner" | "intermediate" | "advanced";
+  readonly stage: CurriculumStage;
+  /**
+   * Course ids recommended beforehand. Soft: the UI recommends, it never locks, so experienced
+   * players can start anywhere.
+   */
+  readonly prerequisites: readonly string[];
+  /** What a student can do after finishing, shown on the course page. */
+  readonly outcomes: readonly string[];
   readonly modules: readonly CourseModule[];
 }

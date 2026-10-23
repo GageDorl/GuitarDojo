@@ -166,9 +166,9 @@ export function Fretboard({
       <rect {...geo.board} rx={presentation === "chord" ? 4 : 3} fill="var(--fb-wood)" />
 
       {/* Highlighted region */}
-      {model.region && (
+      {model.region && geo.span(model.region.start, model.region.end) && (
         <rect
-          {...geo.span(model.region.start, model.region.end)}
+          {...geo.span(model.region.start, model.region.end)!}
           fill="var(--fb-region)"
           fillOpacity={0.16}
           stroke="var(--fb-region)"

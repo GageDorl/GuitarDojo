@@ -22,11 +22,56 @@ async function tap(page: Page, exerciseId: string, positions: [number, number][]
   return card;
 }
 
-test("home page leads into the first lesson", async ({ page }) => {
+test("home page leads into the first lesson of the pathway", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("cta").click();
-  await expect(page).toHaveURL(/notes-and-semitones/);
-  await expect(page.getByRole("heading", { level: 1, name: "Notes and Semitones" })).toBeVisible();
+  await expect(page).toHaveURL(/notes-and-fretboard\/strings-and-tuning/);
+  await expect(page.getByRole("heading", { level: 1, name: "Your Six Strings" })).toBeVisible();
+});
+
+test("the catalog shows the learning path with recommended prerequisites", async ({ page }) => {
+  await page.goto("/learn");
+  for (const id of ["notes-and-fretboard", "intervals", "fretboard-foundations", "major-minor-scales", "pentatonic-scales", "chord-voicings"]) {
+    await expect(page.getByTestId(`course-card-${id}`)).toBeVisible();
+  }
+  await expect(page.getByTestId("course-card-pentatonic-scales")).toContainText("Recommended first: Major and Minor Scales");
+  await expect(page.getByText("Coming later").first()).toBeVisible();
+  // Prerequisites recommend, never lock.
+  await page.goto("/learn/pentatonic-scales");
+  await expect(page.getByTestId("course-prerequisites")).toBeVisible();
+  await page.getByTestId("resume").click();
+  await expect(page.getByRole("heading", { level: 1, name: "Five-Note Scales" })).toBeVisible();
+});
+
+test("a recall drill runs randomized rounds and records a pass", async ({ page }) => {
+  await page.goto("/learn/notes-and-fretboard/strings-and-tuning");
+  await page.getByRole("button", { name: /^Step 2:/ }).click();
+  const drill = page.getByTestId("exercise-name-open-strings");
+  await drill.getByTestId("drill-start").click();
+  const OPEN = ["E", "A", "D", "G", "B", "E"]; // strings 6..1
+  for (let round = 0; round < 6; round++) {
+    await expect(drill.getByTestId("drill-round")).toHaveText(`Round ${round + 1} of 6`);
+    // The question marker sits on an open string; answer from its string number.
+    const marker = drill.locator('[data-testid^="marker-"]').first();
+    const string = Number((await marker.getAttribute("data-testid"))!.split("-")[1]);
+    await drill.getByRole("button", { name: OPEN[6 - string]!, exact: true }).click();
+    if (round < 5) await expect(drill.getByTestId("drill-round")).toHaveText(`Round ${round + 2} of 6`);
+  }
+  await expect(drill.getByTestId("drill-result")).toHaveAttribute("data-passed", "true");
+  await expect(drill).toHaveAttribute("data-solved", "true");
+  await page.reload();
+  await expect(page.getByTestId("exercise-name-open-strings")).toHaveAttribute("data-solved", "true");
+});
+
+test("the note explorer names a tapped note and shows its unisons", async ({ page }) => {
+  await page.goto("/learn/notes-and-fretboard/same-note-different-strings");
+  await page.getByRole("button", { name: /^Step 2:/ }).click();
+  const explorer = page.getByLabel("Note explorer", { exact: true });
+  await explorer.getByTestId("fret-4-0").click();
+  const info = explorer.getByTestId("note-explorer-info");
+  await expect(info).toContainText("This is D3");
+  // D3 is also A-string fret 5 and low-E fret 10 (may be outside the window on small phones).
+  await expect(info).toContainText("2 other places");
 });
 
 test("a student can build a chord and get it validated", async ({ page }) => {
@@ -135,9 +180,18 @@ test("the fretboard is keyboard operable", async ({ page, isMobile }) => {
 });
 
 test("lesson pages never scroll sideways", async ({ page }) => {
-  for (const lesson of ["notes-and-semitones", "intervals", "minor-triads", "triads-on-the-fretboard"]) {
-    await page.goto(`${COURSE}/${lesson}`);
-    for (let step = 1; step <= 3; step++) {
+  for (const lesson of [
+    `${COURSE}/notes-and-semitones`,
+    `${COURSE}/triads-on-the-fretboard`,
+    "/learn/notes-and-fretboard/sharps-and-flats",
+    "/learn/intervals/interval-shapes",
+    "/learn/major-minor-scales/transposition",
+    "/learn/pentatonic-scales/five-positions",
+    "/learn/chord-voicings/barre-chords",
+  ]) {
+    await page.goto(lesson);
+    const steps = await page.getByRole("navigation", { name: "Lesson steps" }).getByRole("button").count();
+    for (let step = 1; step <= steps; step++) {
       await page.getByRole("button", { name: new RegExp(`^Step ${step}:`) }).click();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `${lesson} step ${step}`).toBeLessThanOrEqual(0);

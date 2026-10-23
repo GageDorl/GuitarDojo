@@ -20,6 +20,7 @@ const KIND_LABEL = {
 } as const;
 
 export function exerciseKindLabel(exercise: Exercise): string {
+  if (exercise.kind === "drill") return "Recall drill";
   return exercise.kind === "multiple-choice" ? KIND_LABEL["multiple-choice"] : KIND_LABEL[exercise.task];
 }
 

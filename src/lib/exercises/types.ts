@@ -3,7 +3,16 @@
  * asked and *how* answers are judged; the UI and validators interpret them.
  */
 import type { FretboardSpec, SelectionMode } from "@/lib/fretboard";
-import type { ChordSpec, FretPosition, FretRange, IntervalCode, Inversion, ScaleSpec } from "@/lib/theory";
+import type {
+  ChordQualityId,
+  ChordSpec,
+  FretPosition,
+  FretRange,
+  IntervalCode,
+  Inversion,
+  ScaleSpec,
+  ScaleTypeId,
+} from "@/lib/theory";
 
 // ---------------------------------------------------------------------------------------------
 // Validation rules (one per strategy). Add a new strategy by extending this union and
@@ -115,7 +124,111 @@ export interface FretboardExercise extends ExerciseBase {
   readonly solution: readonly FretPosition[];
 }
 
-export type Exercise = MultipleChoiceExercise | FretboardExercise;
+// ---------------------------------------------------------------------------------------------
+// Drills: randomized, repeated practice for recall and transfer
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * A drill generator is data describing a *family* of questions. Each round draws fresh
+ * parameters (note, string, key, position, inversion …) and produces an ordinary multiple-choice
+ * or fretboard exercise, graded by the normal validators. Add a generator by extending this union
+ * and implementing it in drills.ts.
+ */
+export type DrillGenerator =
+  /** "Find G on the A string." */
+  | { readonly type: "note-location"; readonly strings: readonly number[]; readonly notes?: readonly string[]; readonly range?: FretRange }
+  /** "What note is this?" for a highlighted position. */
+  | {
+      readonly type: "note-naming";
+      readonly strings: readonly number[];
+      readonly range: FretRange;
+      readonly naturalsOnly?: boolean;
+    }
+  /** "Find the major third above this C." */
+  | {
+      readonly type: "interval-construction";
+      readonly intervals: readonly IntervalCode[];
+      readonly rootStrings: readonly number[];
+      readonly rootRange: FretRange;
+      readonly boardRange: FretRange;
+    }
+  /** "What interval is this?" for a root and a second note. */
+  | {
+      readonly type: "interval-recognition";
+      readonly intervals: readonly IntervalCode[];
+      readonly rootStrings: readonly number[];
+      readonly rootRange: FretRange;
+      readonly boardRange: FretRange;
+      /** Show note names on the markers (easier) or only the shape (harder). */
+      readonly showNames?: boolean;
+    }
+  /** "Build D minor in first inversion on strings 4, 3, 2." */
+  | {
+      readonly type: "chord-construction";
+      readonly roots: readonly string[];
+      readonly qualities: readonly ChordQualityId[];
+      readonly range: FretRange;
+      readonly stringGroups?: readonly (readonly number[])[];
+      readonly inversions?: readonly Inversion[];
+    }
+  /** "Name this chord" for a generated voicing. */
+  | {
+      readonly type: "chord-recognition";
+      readonly roots: readonly string[];
+      readonly qualities: readonly ChordQualityId[];
+      readonly range: FretRange;
+      readonly stringGroups?: readonly (readonly number[])[];
+    }
+  /** "This is G major. Which inversion?" */
+  | {
+      readonly type: "inversion-recognition";
+      readonly roots: readonly string[];
+      readonly qualities: readonly ChordQualityId[];
+      readonly stringGroups: readonly (readonly number[])[];
+      readonly range: FretRange;
+    }
+  /** "Tap every root in this pentatonic position." */
+  | {
+      readonly type: "scale-roots";
+      readonly scale: "minor-pentatonic" | "major-pentatonic";
+      readonly roots: readonly string[];
+      readonly positions: readonly (1 | 2 | 3 | 4 | 5)[];
+    }
+  /** "Which key is this pentatonic position in?" (roots are shown as squares). */
+  | {
+      readonly type: "scale-identification";
+      readonly scale: "minor-pentatonic" | "major-pentatonic";
+      readonly roots: readonly string[];
+      readonly positions: readonly (1 | 2 | 3 | 4 | 5)[];
+    }
+  /** "Build E♭ major along the A string." */
+  | {
+      readonly type: "scale-on-string";
+      readonly scales: readonly ScaleTypeId[];
+      readonly roots: readonly string[];
+      readonly strings: readonly number[];
+    }
+  /** "What is the 6th degree of D major?" */
+  | {
+      readonly type: "scale-degree";
+      readonly scale: ScaleTypeId;
+      readonly roots: readonly string[];
+      readonly degrees?: readonly number[];
+    };
+
+export interface DrillExercise extends ExerciseBase {
+  readonly kind: "drill";
+  readonly generator: DrillGenerator;
+  /** Rounds per run. */
+  readonly rounds: number;
+  /** Fraction of rounds that must be right on the first try for the drill to count as passed. */
+  readonly passScore: number;
+}
+
+/** A single question produced by a drill round. */
+export type DrillItem = MultipleChoiceExercise | FretboardExercise;
+
+export type Exercise = MultipleChoiceExercise | FretboardExercise | DrillExercise;
 
 // ---------------------------------------------------------------------------------------------
 // Results

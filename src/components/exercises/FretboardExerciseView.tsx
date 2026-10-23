@@ -125,7 +125,9 @@ export function FretboardExerciseView({ exercise, record, onAttempt }: ExerciseV
           : exercise.selection === "per-string"
             ? "Tap a fret to place a finger, or the space beside the nut for an open string. Tap again to remove. Unplayed strings are muted (×)."
             : exercise.selectableOnlyMarkers
-              ? "Tap one of the highlighted notes."
+              ? exercise.selection === "multi"
+                ? "Tap every highlighted note that answers the question."
+                : "Tap one of the highlighted notes."
               : "Tap to select, tap again to remove."}
       </p>
 

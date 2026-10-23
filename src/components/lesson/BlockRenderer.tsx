@@ -6,6 +6,7 @@ import { ExerciseView } from "@/components/exercises/ExerciseView";
 import { ChromaticStrip } from "./blocks/ChromaticStrip";
 import { DemoPlayer } from "./blocks/DemoPlayer";
 import { IntervalExplorer } from "./blocks/IntervalExplorer";
+import { NoteExplorer } from "./blocks/NoteExplorer";
 import { CalloutView, CompareView, FretboardView, TriadStackView } from "./blocks/SimpleBlocks";
 import { RichText } from "./RichText";
 
@@ -33,6 +34,8 @@ export function BlockRenderer({ block, ctx }: { block: LessonBlock; ctx: BlockCo
       return <CompareView block={block} />;
     case "interval-explorer":
       return <IntervalExplorer block={block} />;
+    case "note-explorer":
+      return <NoteExplorer block={block} />;
     case "exercise":
       return (
         <ExerciseView
